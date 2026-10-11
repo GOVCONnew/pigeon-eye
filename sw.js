@@ -1,6 +1,6 @@
 /* PIGEON EYE service worker: precache app shell + libraries + detector so the HUD works with no signal.
  * Other same-origin files (COCO-SSD fallback, YAMNet if enabled, PeerJS) are cached on first use. Nothing is sent anywhere. */
-var V = 'pe-v1.0.0', RT = 'pe-runtime-v1';
+var V = 'pe-v1.0.1', RT = 'pe-runtime-v1';
 var PRE = ['./', 'index.html', 'manifest.webmanifest', 'css/app.css', 'js/core.js', 'js/track.js', 'js/geo.js', 'js/squad.js', 'js/detectors.js', 'js/app.js', 'js/audio.js', 'js/audiologic.js',
   'vendor/jsQR.js', 'vendor/qrcode.js', 'vendor/tf.min.js', 'vendor/mp/vision_bundle.mjs', 'vendor/mp/wasm/vision_wasm_internal.js', 'vendor/mp/wasm/vision_wasm_internal.wasm',
   'models/effdet/efficientdet_lite0_float16.tflite', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'media/nosleep.mp4'];

@@ -81,7 +81,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
       const gotB = await B.evaluate(() => ({ st: Object.values(__pe.squadState()).map(s => ({ cs: s.callsign, mode: s.mode })), wps: __pe.waypoints().map(w => w.name), rooms: __pe.rooms().map(r => r.name), synced: __pe.events().some(e => e.type === 'sync') }));
       check('host receives member position (≈10 m east after sync)', gotA.st.some(s => s.cs === 'FALCON' && Math.abs(s.x - 14 * 0.72) < 1.5 && Math.abs(s.y) < 1.5), gotA.st);
       check('host receives member waypoint + room clear', gotA.wps.includes('FALCON-WP') && gotA.rooms.includes('Barn'), gotA);
-      check('member receives host waypoints/rooms (bundle) and sync', gotB.wps.includes('RALLY') && gotB.wps.includes('BASE') && gotB.rooms.includes('Shed') && gotB.synced && gotB.st.length >= 1, gotB);
+      check('member receives host waypoints/rooms (bundle) and sync', gotB.wps.includes('RALLY') && gotB.wps.includes('BASE') && gotB.rooms.includes('Shed') && gotB.rooms.includes('Room 1') && gotB.synced && gotB.st.length >= 1, gotB);
       check('latency measured', gotA.rtt.some(r => r != null && r < 1000), gotA.rtt);
       await A.evaluate(() => __pe.openSheet('squad')); await sleep(300); await A.screenshot({ path: path.join(OUT, 'shot_squad_linked.png') });
       await A.evaluate(() => document.getElementById('sheet-close').click()); await A.evaluate(() => __pe.setHeading(30)); await sleep(500); await A.screenshot({ path: path.join(OUT, 'shot_hud_squad.png') });

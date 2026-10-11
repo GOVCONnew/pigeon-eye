@@ -4,7 +4,7 @@
  * Squad: WebRTC data channels (QR signaling, LAN/hotspot) — everything stays on the phones. */
 (function () {
   'use strict';
-  var VERSION = '1.0.0', $ = function (id) { return document.getElementById(id); }, G = PGeo;
+  var VERSION = '1.0.1', $ = function (id) { return document.getElementById(id); }, G = PGeo;
   var ANIMALS = ['bird', 'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe'], VEH = ['bicycle', 'car', 'motorcycle', 'bus', 'truck', 'boat'];
   var DEF = { callsign: 'PIGEON-' + Math.floor(Math.random() * 90 + 10), color: '#00E5FF', fov: 73, ph: 1.75, step: 0.72, animals: true, vehicles: false, audio: false, low: false, model: 'effdet0', mapMode: 'heading', mapScale: 2, big: false, id: Math.random().toString(36).slice(2, 10) };
   var S = Object.assign({}, DEF, JSON.parse(localStorage.getItem('pe.settings') || '{}')); function save() { localStorage.setItem('pe.settings', JSON.stringify(S)); applyClasses(); }
@@ -140,8 +140,8 @@
     $('wp-x').onclick = function () { d.classList.add('hidden'); };
     $('wp-ok').onclick = function () { d.classList.add('hidden'); addWaypoint(pt, $('wp-name').value, $('wp-color').value); };
   }
-  function addWaypoint(pt, name, color) { wpN++; var ll = fuser.origin ? G.fromENU(pt, fuser.origin) : null; var w = { id: S.id + ':w' + Date.now().toString(36), name: name || ('WP ' + wpN), color: color || '#FFB000', x: +pt.x.toFixed(1), y: +pt.y.toFixed(1), lat: ll && +ll.lat.toFixed(6), lon: ll && +ll.lon.toFixed(6), by: S.callsign, ts: Date.now() }; waypoints.push(w); squad.send({ t: 'waypoint', w: w }); logEv('waypoint', 'waypoint ' + w.name, w); toast('Waypoint ' + w.name); return w; }
-  function markClear(name) { var r = { id: S.id + ':r' + Date.now().toString(36), name: name || ('Room ' + roomN++), x: +me().x.toFixed(1), y: +me().y.toFixed(1), by: S.callsign, ts: Date.now(), mode: fuser.mode }; rooms.push(r); squad.send({ t: 'room', r: r }); logEv('room', r.name + ' marked clear', r); toast(r.name + ' CLEAR'); return r; }
+  function addWaypoint(pt, name, color) { wpN++; var ll = fuser.origin ? G.fromENU(pt, fuser.origin) : null; var w = { id: S.id + ':w' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: name || ('WP ' + wpN), color: color || '#FFB000', x: +pt.x.toFixed(1), y: +pt.y.toFixed(1), lat: ll && +ll.lat.toFixed(6), lon: ll && +ll.lon.toFixed(6), by: S.callsign, ts: Date.now() }; waypoints.push(w); squad.send({ t: 'waypoint', w: w }); logEv('waypoint', 'waypoint ' + w.name, w); toast('Waypoint ' + w.name); return w; }
+  function markClear(name) { var r = { id: S.id + ':r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: name || ('Room ' + roomN++), x: +me().x.toFixed(1), y: +me().y.toFixed(1), by: S.callsign, ts: Date.now(), mode: fuser.mode }; rooms.push(r); squad.send({ t: 'room', r: r }); logEv('room', r.name + ' marked clear', r); toast(r.name + ' CLEAR'); return r; }
   $('b-clear').onclick = function () { var d = dialog('<h3>MARK CLEAR</h3><label>Name <input id="rc-name" value="Room ' + roomN + '"></label><div class="row"><button class="btn primary" id="rc-ok">MARK CLEAR</button><button class="btn ghost" id="rc-x">CANCEL</button></div>'); $('rc-x').onclick = function () { d.classList.add('hidden'); }; $('rc-ok').onclick = function () { d.classList.add('hidden'); var n = $('rc-name').value; if (n === 'Room ' + roomN) n = null; markClear(n); }; };
   $('b-wp').onclick = function () { waypointDialog({ x: me().x, y: me().y }, 'at my position'); };
   hud.addEventListener('click', function (e) {
