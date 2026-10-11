@@ -4,13 +4,13 @@
  * Squad: WebRTC data channels (QR signaling, LAN/hotspot) — everything stays on the phones. */
 (function () {
   'use strict';
-  var VERSION = '1.0.2', $ = function (id) { return document.getElementById(id); }, G = PGeo;
+  var VERSION = '1.1.0', $ = function (id) { return document.getElementById(id); }, G = PGeo;
   var ANIMALS = ['bird', 'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe'], VEH = ['bicycle', 'car', 'motorcycle', 'bus', 'truck', 'boat'];
-  var DEF = { callsign: 'PIGEON-' + Math.floor(Math.random() * 90 + 10), color: '#00E5FF', fov: 73, ph: 1.75, step: 0.72, animals: true, vehicles: false, audio: false, low: false, model: 'effdet0', mapMode: 'heading', mapScale: 2, big: false, id: Math.random().toString(36).slice(2, 10) };
+  var DEF = { callsign: 'PIGEON-' + Math.floor(Math.random() * 90 + 10), color: '#00E5FF', fov: 73, ph: 1.75, step: 0.72, animals: true, vehicles: false, audio: false, low: false, model: 'effdet0', mapMode: 'heading', mapScale: 2, layer: 'sat', smooth: 0.25, big: false, id: Math.random().toString(36).slice(2, 10) };
   var S = Object.assign({}, DEF, JSON.parse(localStorage.getItem('pe.settings') || '{}')); function save() { localStorage.setItem('pe.settings', JSON.stringify(S)); applyClasses(); }
   var video = $('cam'), hud = $('hud'), hx = hud.getContext('2d'), mm = $('minimap'), mx = mm.getContext('2d');
   var stream = null, started = false, running = false, busy = false, lastDet = 0, gap = null;
-  var heading = 0, headingSrc = 'none', headingAcc = null, fuser = new G.Fuser({ stepLen: S.step }), steps = new G.StepDetector(), stepCal = null, gpsFix = null, battery = null;
+  var heading = 0, rawHeading = 0, hSmooth = new G.HeadingSmoother(S.smooth), lastFrame = 0, tiles = new PTiles.Tiles(), headingSrc = 'none', headingAcc = null, fuser = new G.Fuser({ stepLen: S.step }), steps = new G.StepDetector(), stepCal = null, gpsFix = null, battery = null;
   var tracker = new STrack.Tracker({}), contacts = [], waypoints = [], rooms = [], path = [], events = [], squadState = {}, roomN = 1, wpN = 1;
   var stats = { det: [], skipped: 0, detTimes: [], steps: 0, gpsFixes: 0, oriEvents: 0, motEvents: 0 };
   var squad = new PSquad.Squad({ me: { id: S.id, callsign: S.callsign, color: S.color }, onMessage: onSquadMsg, onRoster: renderRoster, onLog: function (a, b) { logEv('squad', a + ' ' + (b || '')); } });
@@ -46,7 +46,7 @@
     }
     if (h == null || !isFinite(h)) return;
     if (headingSrc.indexOf('compass') === 0) sens.ori.tc = Date.now();
-    heading = G.norm360(h);
+    rawHeading = G.norm360(h); // the rAF loop interpolates the displayed heading toward this
   }
   function hdg() { return finite(heading, 0); }
   function onMotion(e) {
@@ -183,6 +183,16 @@
   });
   $('m-close').onclick = function () { mm.classList.remove('full'); $('mapbar').classList.add('hidden'); resize(); };
   $('m-mode').onclick = function () { S.mapMode = S.mapMode === 'heading' ? 'north' : 'heading'; save(); this.textContent = S.mapMode === 'heading' ? 'HEADING-UP' : 'NORTH-UP'; };
+  var LAYERS = { sat: 'SAT', map: 'MAP', none: 'GRID' }; function layerBtn() { $('m-layer').textContent = LAYERS[S.layer] || 'SAT'; } layerBtn();
+  $('m-layer').onclick = function () { S.layer = S.layer === 'sat' ? 'map' : S.layer === 'map' ? 'none' : 'sat'; save(); layerBtn(); };
+  $('m-save').onclick = function () {
+    var ll = fuser.latlon(); if (!ll) return toast('Need a GPS fix to save an area');
+    var zs = [12, 13, 14, 15], est = function (r) { var e = PTiles.estimate(ll.lat, ll.lon, r, zs); return e.tiles + ' tiles ≈ ' + (e.bytes / 1e6).toFixed(1) + ' MB'; };
+    var d = dialog('<h3>SAVE AREA FOR OFFLINE</h3><p class="muted">Satellite tiles from Sentinel-2 cloudless (EOX, CC BY-NC-SA 4.0, ~10 m detail, zoom 12–15) — the source that permits caching. OSM and Esri tiles are not bulk-downloaded (their terms); tiles you have already viewed stay cached.</p><label>Radius <select id="sa-r"><option value="500">0.5 km — ' + est(500) + '</option><option value="1000" selected>1 km — ' + est(1000) + '</option><option value="2000">2 km — ' + est(2000) + '</option></select></label><div id="sa-p" class="mono muted">cap 500 tiles</div><div class="row"><button class="btn primary" id="sa-go">DOWNLOAD</button><button class="btn" id="sa-clear">DELETE SAVED</button><button class="btn ghost" id="sa-x">CLOSE</button></div>');
+    PTiles.savedInfo().then(function (i) { $('sa-p').textContent = 'saved now: ' + i.tiles + ' tiles · cap 500 per download'; });
+    $('sa-x').onclick = function () { d.classList.add('hidden'); }; $('sa-clear').onclick = function () { PTiles.clearSaved().then(function () { $('sa-p').textContent = 'deleted'; }); };
+    $('sa-go').onclick = function () { var r = +$('sa-r').value; $('sa-go').disabled = true; tiles.saveArea(ll.lat, ll.lon, r, zs, function (a, b, by) { $('sa-p').textContent = a + ' / ' + b + ' tiles · ' + (by / 1e6).toFixed(1) + ' MB'; }, 500).then(function (res) { $('sa-p').textContent = 'saved ' + (res.tiles - res.failed) + '/' + res.tiles + ' tiles (' + (res.bytes / 1e6).toFixed(1) + ' MB)'; logEv('map', 'saved offline area r=' + r + ' m, ' + res.tiles + ' tiles'); try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {} }).catch(function (e) { $('sa-p').textContent = 'failed: ' + e.message; }).then(function () { $('sa-go').disabled = false; }); };
+  };
   $('m-zin').onclick = function () { S.mapScale = Math.min(40, S.mapScale * 1.5); save(); }; $('m-zout').onclick = function () { S.mapScale = Math.max(0.2, S.mapScale / 1.5); save(); };
 
   // ---------- drawing ----------
@@ -203,7 +213,7 @@
     waypoints.forEach(function (w) { mark(G.enuDistBrg(me(), w).brg, w.color); }); Object.keys(squadState).forEach(function (k) { var s = squadState[k]; if (Date.now() - s.t < 15000) mark(G.enuDistBrg(me(), memberENU(s)).brg, s.color || '#0ef'); });
     contacts.forEach(function (c) { if (Date.now() - c.ts < 60000) mark(G.enuDistBrg(me(), c).brg, '#FF3B30'); });
     txt(String(Math.round(heading)).padStart(3, '0') + '° ' + G.cardinal(heading), W / 2, top + fs(22), '#fff', 20, 'center');
-    hx.strokeStyle = '#fff'; hx.beginPath(); hx.moveTo(W / 2, top + h - 2); hx.lineTo(W / 2, top + h - 18); hx.stroke();
+    hx.strokeStyle = '#fff'; hx.lineWidth = 1.5; hx.beginPath(); hx.moveTo(W / 2, top + h - 2); hx.lineTo(W / 2, top + h - 14); hx.stroke(); hx.fillStyle = '#fff'; hx.beginPath(); hx.moveTo(W / 2 - 6, top + h - 20); hx.lineTo(W / 2 + 6, top + h - 20); hx.lineTo(W / 2, top + h - 13); hx.fill();
   }
   function arrow(ind, col, label) { hx.save(); hx.translate(ind.x, ind.y); hx.rotate(ind.angle * Math.PI / 180); hx.fillStyle = col; hx.beginPath(); hx.moveTo(0, -14); hx.lineTo(-8, 4); hx.lineTo(8, 4); hx.closePath(); hx.fill(); hx.restore(); txt(label, Math.min(Math.max(ind.x, 40), hud.clientWidth - 40), ind.y + (ind.y > hud.clientHeight / 2 ? -14 : 24), col, 11, 'center'); }
   function drawWorldMarker(p, col, label, T, W, H, shape) {
@@ -231,9 +241,13 @@
     waypoints.forEach(function (w) { drawWorldMarker(w, w.color, w.name, T, W, H); });
     contacts.forEach(function (c) { var age = Date.now() - c.ts; if (age > 60000 || (c.own && vis.some(function (t) { return t.id === c.trackId; }))) return; var db = G.enuDistBrg(me(), c), ind = G.edgeIndicator(db.brg, heading, T.hfov, W, H, 40); if (ind) { hx.globalAlpha = Math.max(0.3, 1 - age / 60000); arrow(ind, '#FF3B30', c.cls + ' ' + G.fmtDist(db.d) + ' ' + Math.round(age / 1000) + 's'); hx.globalAlpha = 1; } });
   }
+  var mapInfo = { tiles: 0 };
   function drawMap() {
     var r = mm.getBoundingClientRect(), W = r.width, H = r.height, cx = W / 2, cy = H / 2, sc = S.mapScale * (mm.classList.contains('full') ? 1 : 0.6), P = function (p) { return G.project(p, me(), S.mapMode, heading, sc, cx, cy); };
     mx.clearRect(0, 0, W, H); mx.save(); if (!mm.classList.contains('full')) { mx.beginPath(); mx.arc(cx, cy, W / 2, 0, 7); mx.clip(); }
+    var ll = fuser.latlon(), full = mm.classList.contains('full'); mapInfo.tiles = 0;
+    if (ll && S.layer !== 'none' && isFinite(ll.lat) && isFinite(ll.lon)) { mapInfo.tiles = tiles.draw(mx, S.layer, ll.lat, ll.lon, 1 / sc, W, H, cx, cy, S.mapMode === 'heading' ? -hdg() * Math.PI / 180 : 0, devicePixelRatio || 1); if (mapInfo.tiles) { mx.fillStyle = 'rgba(0,0,0,.25)'; mx.fillRect(0, 0, W, H); } }
+    if (ll && fuser.acc != null && isFinite(fuser.acc)) { mx.fillStyle = 'rgba(0,229,255,.12)'; mx.strokeStyle = 'rgba(0,229,255,.6)'; mx.beginPath(); mx.arc(cx, cy, Math.min(Math.max(W, H), fuser.acc * sc), 0, 7); mx.fill(); mx.stroke(); }
     mx.strokeStyle = 'rgba(154,205,50,.25)'; mx.lineWidth = 1; [10, 25, 50, 100, 250].forEach(function (m) { if (m * sc < Math.max(W, H)) { mx.beginPath(); mx.arc(cx, cy, m * sc, 0, 7); mx.stroke(); } });
     mx.strokeStyle = 'rgba(154,205,50,.8)'; var brk = true; mx.beginPath(); path.slice(-3000).forEach(function (p, i) { var q = P(p); if (!q) { brk = true; return; } if (i && !p.sync && !brk) mx.lineTo(q.x, q.y); else mx.moveTo(q.x, q.y); brk = false; }); mx.stroke();
     rooms.forEach(function (rm) { var q = P(rm); if (!q) return; mx.strokeStyle = GREEN; mx.strokeRect(q.x - 6, q.y - 6, 12, 12); mx.beginPath(); mx.moveTo(q.x - 4, q.y); mx.lineTo(q.x - 1, q.y + 3); mx.lineTo(q.x + 4, q.y - 3); mx.stroke(); mtxt(rm.name, q.x + 8, q.y + 4, GREEN); });
@@ -243,7 +257,10 @@
     // me
     mx.save(); mx.translate(cx, cy); mx.rotate(S.mapMode === 'heading' ? 0 : heading * Math.PI / 180); mx.fillStyle = '#fff'; mx.beginPath(); mx.moveTo(0, -9); mx.lineTo(6, 7); mx.lineTo(0, 3); mx.lineTo(-6, 7); mx.fill(); mx.restore();
     if (S.mapMode === 'heading') { var nq = G.project({ x: me().x, y: me().y + 1000 }, me(), 'heading', heading, 1, cx, cy), a = Math.atan2(nq.x - cx, cy - nq.y); mtxt('N', cx + Math.sin(a) * (Math.min(W, H) / 2 - 12) - 4, cy - Math.cos(a) * (Math.min(W, H) / 2 - 12) + 4, '#fff'); } else mtxt('N', cx - 4, 14, '#fff');
-    mx.restore(); $('m-scale').textContent = Math.round(50 / sc) + ' m / 50 px';
+    var badge = !ll ? 'NO GPS FIX — grid only' : fuser.mode === 'PDR' ? 'PDR — estimated' : 'GPS ±' + Math.round(fuser.acc || 0) + ' m';
+    mx.font = (full ? 12 : 9) + 'px ui-monospace, Menlo, monospace'; mx.textAlign = 'center'; mx.fillStyle = fuser.mode === 'PDR' || !ll ? '#FFB000' : '#9ACD32'; mx.fillText(badge, cx, full ? 80 : H - 30);
+    if (mapInfo.tiles) { var at = S.layer === 'map' ? PTiles.SOURCES.map.attr : (navigator.onLine === false ? PTiles.SOURCES.s2.attr : PTiles.SOURCES.sat.attr); mx.font = (full ? 10 : 7) + 'px system-ui, sans-serif'; mx.fillStyle = '#fff'; if (full) { mx.textAlign = 'right'; mx.fillText(at, W - 6, H - 70); } else { mx.fillText(S.layer === 'map' ? '© OSM' : (navigator.onLine === false ? '© EOX S2' : '© Esri'), cx, H - 18); } }
+    mx.textAlign = 'left'; mx.restore(); $('m-scale').textContent = Math.round(50 / sc) + ' m / 50 px';
   }
   function mtxt(s, x, y, col) { mx.font = '11px ui-monospace, Menlo, monospace'; mx.fillStyle = col; mx.fillText(s, x, y); }
   function topbar() {
@@ -253,7 +270,7 @@
     $('t-clock').textContent = new Date().toTimeString().slice(0, 8); $('t-bat').textContent = battery ? Math.round(battery.level * 100) + '%' + (battery.charging ? '+' : '') : '';
   }
   function loop() {
-    requestAnimationFrame(loop); if (!isFinite(heading)) heading = 0; if (!started) return; var now = performance.now();
+    requestAnimationFrame(loop); var tnow = performance.now(), dt = lastFrame ? Math.min(250, tnow - lastFrame) : 16; lastFrame = tnow; hSmooth.tau = S.smooth; if (isFinite(rawHeading)) heading = hSmooth.update(rawHeading, dt); if (!isFinite(heading)) heading = 0; if (!started) return; var now = performance.now();
     if (running && !gap && SDet2.isReady() && video.videoWidth) { if (!busy && now - lastDet >= (S.low ? 800 : 250)) { lastDet = now; detStep(now); } else if (busy && now - lastDet > 250) stats.skipped++; }
     checkSize(); try { drawHUD(); } catch (e) { drawErr.hud = e.message; } try { drawMap(); } catch (e) { drawErr.map = e.message; } if (((now / 500) | 0) !== loop._k) { loop._k = (now / 500) | 0; topbar(); if (!$('sheet').classList.contains('hidden') && $('p-diag').classList.contains('active')) renderDiag(); if (!$('sheet').classList.contains('hidden') && $('p-sensors').classList.contains('active')) renderSensors(); }
   }
@@ -293,7 +310,7 @@
   $('b-big').onclick = function () { S.big = !S.big; save(); this.classList.toggle('on', S.big); };
   $('btn-start-help').onclick = function () { openSheet('help'); };
   function bind(id, key, num) { var e = $(id); if (e.type === 'checkbox') e.checked = !!S[key]; else e.value = S[key]; e.onchange = function () { S[key] = e.type === 'checkbox' ? e.checked : num ? +e.value : e.value; save(); if (key === 'model') SDet2.load(S.model).then(function () { toast('Detector ready'); }); if (key === 'audio') { if (S.audio && started) startAudio(); else stopAudio(); } }; }
-  [['s-call', 'callsign'], ['s-color', 'color'], ['s-fov', 'fov', 1], ['s-ph', 'ph', 1], ['s-step', 'step', 1], ['s-animals', 'animals'], ['s-vehicles', 'vehicles'], ['s-audio', 'audio'], ['s-low', 'low'], ['s-model', 'model']].forEach(function (b) { bind(b[0], b[1], b[2]); });
+  [['s-call', 'callsign'], ['s-color', 'color'], ['s-fov', 'fov', 1], ['s-ph', 'ph', 1], ['s-step', 'step', 1], ['s-animals', 'animals'], ['s-vehicles', 'vehicles'], ['s-audio', 'audio'], ['s-low', 'low'], ['s-model', 'model'], ['s-smooth', 'smooth', 1]].forEach(function (b) { bind(b[0], b[1], b[2]); });
   $('s-cal').onclick = function () { var d = +$('s-cal-d').value, t = tracker.confirmedVisible().filter(function (x) { return x.group === 'person'; }).sort(function (a, b) { return b.box.h - a.box.h; })[0]; if (!d || !t) return toast('Need a known distance and a confirmed person in view'); if (t.box.y <= 2 || t.box.y + t.box.h >= video.videoHeight - 2) return toast('Person is cut off by the frame — step back'); S.fov = +G.calibrateFov(t.box.h, video.videoWidth, video.videoHeight, S.ph, d).toFixed(1); save(); $('s-fov').value = S.fov; logEv('calibration', 'FOV calibrated to ' + S.fov + '°'); toast('FOV = ' + S.fov + '°'); };
   $('s-step-start').onclick = function () { stepCal = { n: 0, t: Date.now() }; $('s-step-info').textContent = 'Walk the measured distance now…'; };
   $('s-step-stop').onclick = function () { var d = +$('s-step-d').value; if (!stepCal || !d || stepCal.n < 4) { $('s-step-info').textContent = 'Need ≥4 steps and a distance (' + (stepCal ? stepCal.n : 0) + ' steps)'; return; } S.step = +(d / stepCal.n).toFixed(3); save(); $('s-step').value = S.step; $('s-step-info').textContent = stepCal.n + ' steps → ' + S.step + ' m/step'; logEv('calibration', 'step length ' + S.step + ' m'); stepCal = null; };
@@ -368,6 +385,6 @@
   };
   $('b-compass').onclick = function () { requestMotionPerms().then(function () { listenSensors(); toast('Compass: ' + sens.ori.perm); }); if (sens.geo.watch == null) startGeo(); };
   window.__pe = { VERSION: VERSION, S: S, squad: squad, fuser: fuser, tracker: tracker, waypoints: function () { return waypoints; }, rooms: function () { return rooms; }, contacts: function () { return contacts; }, events: function () { return events; }, path: function () { return path; }, squadState: function () { return squadState; },
-    useCode: useCode, addWaypoint: addWaypoint, markClear: markClear, setHeading: function (h) { heading = h; }, sens: sens, drawErr: drawErr, emitOrientation: onOrientation, gps: function (lat, lon, acc) { onGps({ coords: { latitude: lat, longitude: lon, accuracy: acc } }); }, step: function () { stats.steps++; fuser.step(hdg()); addPathPoint(); }, sync: function () { $('sq-sync').click(); }, geojson: geojson, sessionJSON: sessionJSON, offline: function () { return offlineMsg; }, openSheet: openSheet, stats: stats };
+    useCode: useCode, addWaypoint: addWaypoint, markClear: markClear, setHeading: function (h) { heading = h; rawHeading = h; if (isFinite(h)) hSmooth.snap(h); }, setRawHeading: function (h) { rawHeading = h; }, tiles: tiles, mapInfo: function () { return mapInfo; }, heading: function () { return heading; }, sens: sens, drawErr: drawErr, emitOrientation: onOrientation, gps: function (lat, lon, acc) { onGps({ coords: { latitude: lat, longitude: lon, accuracy: acc } }); }, step: function () { stats.steps++; fuser.step(hdg()); addPathPoint(); }, sync: function () { $('sq-sync').click(); }, geojson: geojson, sessionJSON: sessionJSON, offline: function () { return offlineMsg; }, openSheet: openSheet, stats: stats };
   requestAnimationFrame(loop); boot();
 })();

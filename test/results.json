@@ -1,6 +1,6 @@
 {
   "unit": {
-    "pass": 44,
+    "pass": 61,
     "fail": 0
   },
   "checks": [
@@ -38,7 +38,7 @@
           "fp": 3,
           "fn": 0
         },
-        "p50ms": 88
+        "p50ms": 91
       }
     },
     {
@@ -85,7 +85,7 @@
           "fp": 0,
           "fn": 3
         },
-        "p50ms": 343
+        "p50ms": 368
       }
     },
     {
@@ -142,26 +142,90 @@
     {
       "name": "path CSV export",
       "ok": true,
-      "info": "2026-10-11T13:40:53.800Z,0,0,38.889484,-77.035278,GPS,6,45,"
+      "info": "2026-10-11T15:03:47.651Z,0,0,38.889484,-77.035278,GPS,6,45,"
     },
     {
       "name": "offer QR renders and decodes (jsQR) to the offer code",
       "ok": true,
       "info": {
-        "len": 482
+        "len": 491
       }
     },
     {
       "name": "answer QR renders and decodes",
       "ok": true,
       "info": {
-        "len": 480
+        "len": 482
       }
     },
     {
       "name": "WebRTC browser↔browser link",
       "ok": true,
       "info": "skipped: this Chrome gathered 0 ICE candidates (sandbox without enumerable network interfaces); see squad_node + CI run"
+    },
+    {
+      "name": "live smoothing 350°→10° goes through 0° (no 180° spin) and settles",
+      "ok": true,
+      "info": [
+        351,
+        2,
+        7,
+        8,
+        9
+      ]
+    },
+    {
+      "name": "tape/heading animates every frame (rAF, independent of sensor rate)",
+      "ok": true,
+      "info": "42 frames/s headless"
+    },
+    {
+      "name": "satellite tiles (Esri) render under the full map",
+      "ok": true,
+      "info": {
+        "tiles": 121,
+        "z": 19,
+        "stats": {
+          "net": 138,
+          "cache": 0,
+          "failed": 0
+        }
+      }
+    },
+    {
+      "name": "OpenStreetMap tiles render (layer toggle)",
+      "ok": true,
+      "info": {
+        "tiles": 121,
+        "stats": {
+          "net": 271,
+          "cache": 0,
+          "failed": 0
+        }
+      }
+    },
+    {
+      "name": "GRID layer draws no tiles",
+      "ok": true,
+      "info": 0
+    },
+    {
+      "name": "SAVE AREA (0.5 km, z12–15) downloads with progress + size",
+      "ok": true,
+      "info": "saved 14/14 tiles (0.3 MB)"
+    },
+    {
+      "name": "offline reload: map renders from saved tiles (EOX), missing tiles = grid",
+      "ok": true,
+      "info": {
+        "tiles": 121,
+        "stats": {
+          "net": 0,
+          "cache": 4,
+          "failed": 0
+        },
+        "online": false
+      }
     },
     {
       "name": "iOS mock: requestPermission succeeds in tap, rejects after an await on async work like getUserMedia (control)",
@@ -180,7 +244,7 @@
     {
       "name": "start screen shows version",
       "ok": true,
-      "info": "v1.0.2"
+      "info": "v1.1.0"
     },
     {
       "name": "START calls orientation, motion and getCurrentPosition synchronously inside the tap",
@@ -278,7 +342,7 @@
       "name": "minimap renders with no GPS and NaN heading (PDR path, DPR-sized canvas)",
       "ok": true,
       "info": {
-        "lit": 4290,
+        "lit": 5380,
         "w": 300,
         "err": {},
         "path": 8,
@@ -286,14 +350,14 @@
       }
     },
     {
-      "name": "service worker version served = pe-v1.0.2",
+      "name": "service worker version served = pe-v1.1.0",
       "ok": true,
-      "info": "pe-v1.0.2"
+      "info": "pe-v1.1.0"
     },
     {
       "name": "service worker precache ready",
       "ok": true,
-      "info": "READY — works with no signal (23 files)"
+      "info": "READY — works with no signal (24 files)"
     },
     {
       "name": "offline reload: app + detector load from cache",
@@ -312,11 +376,11 @@
   ],
   "squadNode": [
     {
-      "name": "pairing FALCON: offer 586 / answer 590 chars (QR-sized), 2 host candidates",
+      "name": "pairing FALCON: offer 584 / answer 584 chars (QR-sized), 2 host candidates",
       "ok": true
     },
     {
-      "name": "pairing OWL: offer 586 / answer 583 chars (QR-sized), 2 host candidates",
+      "name": "pairing OWL: offer 586 / answer 586 chars (QR-sized), 2 host candidates",
       "ok": true
     },
     {
@@ -364,8 +428,8 @@
       "name": "latency (RTT) measured on both links",
       "ok": true,
       "info": [
-        3,
-        3
+        6,
+        4
       ]
     },
     {
@@ -392,7 +456,7 @@
       "fp": 3,
       "fn": 0
     },
-    "p50ms": 88
+    "p50ms": 91
   },
   "eval_coco-lite": {
     "person": {
@@ -409,7 +473,7 @@
       "fp": 0,
       "fn": 3
     },
-    "p50ms": 343
+    "p50ms": 368
   },
   "squadBrowser": "skipped: this Chrome gathered 0 ICE candidates (sandbox without enumerable network interfaces); see squad_node + CI run",
   "base": "http://localhost:8765/",

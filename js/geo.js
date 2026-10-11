@@ -75,9 +75,21 @@
   Fuser.prototype.tick = function (now) { if (this.mode === 'GPS' && (!this.lastGps || now - this.lastGps.t > 8000)) this.mode = 'PDR'; if (this.mode === 'PDR') this.acc = (this.lastGps && this.lastGps.acc <= this.goodAcc ? this.lastGps.acc : 0) + this.pdrErr; return this.mode; };
   Fuser.prototype.sync = function (origin) { this.pos = { x: 0, y: 0 }; this.pathLen = 0; this.pdrErr = 0; if (origin) this.origin = origin; };
   Fuser.prototype.latlon = function () { return this.origin ? fromENU(this.pos, this.origin) : null; };
+  // ---- heading smoothing (circular / vector low-pass, frame-rate independent) ----
+  function circularMean(degs) { var x = 0, y = 0; degs.forEach(function (d) { x += Math.cos(d * D2R); y += Math.sin(d * D2R); }); return norm360(Math.atan2(y, x) * R2D); }
+  /** tau = time constant in seconds (0 = no smoothing). update(targetDeg, dtMs) → smoothed heading. */
+  function HeadingSmoother(tau) { this.tau = tau == null ? 0.25 : tau; this.x = null; this.y = null; }
+  HeadingSmoother.prototype.update = function (target, dtMs) {
+    if (!isFinite(target)) return this.value(); var tx = Math.cos(target * D2R), ty = Math.sin(target * D2R);
+    if (this.x == null || !(this.tau > 0)) { this.x = tx; this.y = ty; return this.value(); }
+    var a = 1 - Math.exp(-Math.max(0, dtMs) / 1000 / this.tau); this.x += a * (tx - this.x); this.y += a * (ty - this.y);
+    var m = Math.hypot(this.x, this.y); if (m < 1e-6) { this.x = tx; this.y = ty; } return this.value();
+  };
+  HeadingSmoother.prototype.value = function () { return this.x == null ? 0 : norm360(Math.atan2(this.y, this.x) * R2D); };
+  HeadingSmoother.prototype.snap = function (h) { this.x = Math.cos(h * D2R); this.y = Math.sin(h * D2R); };
   function fmtDist(m) { if (m == null || !isFinite(m)) return '--'; return m < 100 ? Math.round(m) + 'm' : m < 1000 ? (Math.round(m / 5) * 5) + 'm' : (m / 1000).toFixed(1) + 'km'; }
   var CARD = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']; function cardinal(h) { return CARD[Math.round(norm360(h) / 45) % 8]; }
   var api = { norm360: norm360, norm180: norm180, focalPx: focalPx, estDistance: estDistance, offsetDeg: offsetDeg, hfovDeg: hfovDeg, bearingOf: bearingOf, calibrateFov: calibrateFov, haversine: haversine, bearing: bearing, destination: destination,
-    toENU: toENU, fromENU: fromENU, polarToENU: polarToENU, enuDistBrg: enuDistBrg, project: project, edgeIndicator: edgeIndicator, StepDetector: StepDetector, Fuser: Fuser, fmtDist: fmtDist, cardinal: cardinal };
+    toENU: toENU, fromENU: fromENU, polarToENU: polarToENU, enuDistBrg: enuDistBrg, project: project, edgeIndicator: edgeIndicator, StepDetector: StepDetector, Fuser: Fuser, fmtDist: fmtDist, cardinal: cardinal, circularMean: circularMean, HeadingSmoother: HeadingSmoother };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else global.PGeo = api;
 })(typeof window !== 'undefined' ? window : globalThis);

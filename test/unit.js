@@ -30,6 +30,31 @@ t('minimap NaN guard: undefined/null heading', () => { [undefined, null, Infinit
 t('minimap NaN guard: NaN point → null (skipped, not drawn)', () => { assert.strictEqual(G.project({ x: NaN, y: 1 }, { x: 0, y: 0 }, 'north', 0, 1, 0, 0), null); assert.strictEqual(G.project(null, { x: 0, y: 0 }, 'north', 0, 1, 0, 0), null); });
 t('minimap NaN guard: NaN own position → centred at origin', () => { const p = G.project({ x: 2, y: 0 }, { x: NaN, y: 0 }, 'north', 0, 1, 10, 10); near(p.x, 12, 1e-9); });
 t('minimap NaN guard: bad scale', () => { const p = G.project({ x: 2, y: 0 }, { x: 0, y: 0 }, 'north', 0, NaN, 0, 0); assert(isFinite(p.x)); });
+// --- map tiles (Web Mercator) ---
+const T = require('../js/tiles.js');
+t('tiles: (0,0) at z0 is centre of world', () => { const p = T.worldPx(0, 0, 0); near(p.x, 128, 1e-9); near(p.y, 128, 1e-9); });
+t('tiles: known tile — Washington Monument z15 = 9372/12536', () => { const k = T.tileOf(38.8895, -77.0353, 15); assert.deepStrictEqual([k.x, k.y], [9372, 12536]); });
+t('tiles: known tile — London z10 = 511/340', () => { const k = T.tileOf(51.5074, -0.1278, 10); assert.deepStrictEqual([k.x, k.y], [511, 340]); });
+t('tiles: px ↔ lat/lon round trip (z17)', () => { const p = T.worldPx(-33.8568, 151.2153, 17), q = T.pxToLatLon(p.x, p.y, 17); near(q.lat, -33.8568, 1e-9); near(q.lon, 151.2153, 1e-9); });
+t('tiles: metres/px at equator z0 = 156543 m', () => near(T.metersPerPx(0, 0), 156543.03, 0.01));
+t('tiles: Mercator scale agrees with ENU (100 m east ≈ 100 m of pixels at 45°N)', () => { const o = { lat: 45, lon: 7 }, b = G.destination(o, 90, 100), z = 18, a = T.worldPx(o.lat, o.lon, z), c = T.worldPx(b.lat, b.lon, z); near((c.x - a.x) * T.metersPerPx(45, z), 100, 0.2); });
+t('tiles: zoomFor picks ~1 m/px → z17 at 40°N (dpr 1)', () => { const z = T.zoomFor(40, 1, 19, 1); assert(z === 17, 'z=' + z); });
+t('tiles: tilesInRadius 1 km z15 is a small set (cap-friendly)', () => { const n = T.tilesInRadius(38.89, -77.03, 1000, 15).length; assert(n >= 4 && n <= 25, n); });
+t('tiles: estimate 1 km @ z12–15 under the 500-tile cap', () => { const e = T.estimate(38.89, -77.03, 1000, [12, 13, 14, 15]); assert(e.tiles < 500 && e.tiles > 5, e.tiles); });
+// --- rotation: tile layer canvas rotate(-heading) agrees with overlay projection (heading-up) ---
+t('rotation: tile canvas transform == G.project heading-up for many bearings/headings', () => {
+  for (const h of [0, 33, 90, 181, 270, 359]) for (const b of [0, 45, 100, 200, 315]) { const e = G.polarToENU(b, 50), sc = 2, cx = 100, cy = 100;
+    const north = { x: e.x * sc, y: -e.y * sc }, r = -h * Math.PI / 180, cr = { x: cx + north.x * Math.cos(r) - north.y * Math.sin(r), y: cy + north.x * Math.sin(r) + north.y * Math.cos(r) }; // canvas rotate(r)
+    const p = G.project(e, { x: 0, y: 0 }, 'heading', h, sc, cx, cy); near(p.x, cr.x, 1e-6, `h${h} b${b} x`); near(p.y, cr.y, 1e-6, `h${h} b${b} y`); }
+});
+t('rotation: target at current heading is straight up in heading-up', () => { const p = G.project(G.polarToENU(250, 10), { x: 0, y: 0 }, 'heading', 250, 1, 0, 0); near(p.x, 0, 1e-9); near(p.y, -10, 1e-9); });
+// --- heading smoothing ---
+t('smoothing: circular mean of 350° and 10° = 0°, not 180°', () => { const m = G.circularMean([350, 10]); assert(Math.min(m, 360 - m) < 1e-9, m); });
+t('smoothing: 359 → 1 passes through 0, never via 180', () => { const s = new G.HeadingSmoother(0.25); s.update(359, 16); let worst = 0; for (let i = 0; i < 150; i++) { const v = s.update(1, 16); const d = Math.min(Math.abs(v - 0), 360 - Math.abs(v - 0)); worst = Math.max(worst, d); } assert(worst <= 1.0001, worst); near(s.value() > 180 ? s.value() - 360 : s.value(), 1, 0.01); });
+t('smoothing: 10 → 350 turns left 20° (short way)', () => { const s = new G.HeadingSmoother(0.25); s.update(10, 16); const v = s.update(350, 50); assert(v < 10 || v > 350, v); });
+t('smoothing: time constant — 63% of a 40° step after tau (frame-rate independent)', () => { for (const fps of [30, 60, 120]) { const s = new G.HeadingSmoother(0.5); s.update(0, 16); let v; for (let i = 0; i < fps * 0.5; i++) v = s.update(40, 1000 / fps); assert(v > 22 && v < 30, fps + 'fps ' + v); } });
+t('smoothing: tau 0 = raw', () => { const s = new G.HeadingSmoother(0); s.update(10, 16); near(s.update(200, 16), 200, 1e-9); });
+t('smoothing: NaN target ignored', () => { const s = new G.HeadingSmoother(0.25); s.update(90, 16); near(s.update(NaN, 16), 90, 1e-9); });
 // --- off-screen ---
 t('edge: in-view target → null', () => assert.strictEqual(G.edgeIndicator(100, 90, 45, 400, 800), null));
 t('edge: target to the right → right edge', () => { const e = G.edgeIndicator(90, 0, 45, 400, 800, 20); near(e.x, 380, 1e-6); near(e.y, 400, 1e-6); });

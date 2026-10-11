@@ -40,7 +40,7 @@
   </div>
   <div id="counts" class="counts mono"></div>
   <canvas id="minimap" class="minimap"></canvas>
-  <div id="mapbar" class="mapbar hidden"><button class="btn sm" id="m-mode">HEADING-UP</button><button class="btn sm" id="m-zin">＋</button><button class="btn sm" id="m-zout">－</button><span class="mono muted" id="m-scale"></span><span class="sp"></span><span class="mono muted">tap map = waypoint</span><button class="btn sm primary" id="m-close">CLOSE</button></div>
+  <div id="mapbar" class="mapbar hidden"><button class="btn sm" id="m-mode">HEADING-UP</button><button class="btn sm" id="m-layer">SAT</button><button class="btn sm" id="m-save">SAVE AREA</button><button class="btn sm" id="m-zin">＋</button><button class="btn sm" id="m-zout">－</button><span class="mono muted" id="m-scale"></span><span class="sp"></span><button class="btn sm primary" id="m-close">CLOSE</button></div>
   <div id="bottombar" class="bottombar">
     <button class="btn" id="b-clear">MARK CLEAR</button><button class="btn" id="b-wp">WAYPOINT</button><button class="btn" id="b-squad">SQUAD</button><button class="btn" id="b-big">BIG</button><button class="btn" id="b-menu">MENU</button>
   </div>
@@ -89,6 +89,7 @@
       <label class="chk"><input type="checkbox" id="s-vehicles"> Detect vehicles</label>
       <label class="chk"><input type="checkbox" id="s-audio"> Sound classification (YAMNet, +16 MB download)</label>
       <label class="chk"><input type="checkbox" id="s-low"> Low power (slower detection)</label>
+      <label>Compass smoothing <select id="s-smooth"><option value="0">off (raw)</option><option value="0.1">light (0.1 s)</option><option value="0.25">normal (0.25 s)</option><option value="0.6">heavy (0.6 s)</option><option value="1.2">very heavy (1.2 s)</option></select></label>
       <label>Detector <select id="s-model"><option value="effdet0">EfficientDet-Lite0 (default)</option><option value="coco-lite">COCO-SSD lite (fallback)</option></select></label>
     </div>
   </section>
@@ -108,7 +109,7 @@
     <h3>Calibration</h3><p><b>FOV</b>: stand a friend of known height at a measured distance (e.g. 10 m), wait for the confirmed box, enter the distance and tap CALIBRATE. <b>Step length</b>: tap START STEP CAL, walk a measured distance normally, enter it, tap STOP &amp; SET.</p>
     <h3>Positioning</h3><p><b>GPS</b> mode when the fix is ≤15 m accurate; otherwise <b>PDR</b> (pedestrian dead reckoning: steps × step length along the compass). PDR drifts, typically 5–10 % of the distance walked, and heading errors bend the path. The accuracy figure grows as you walk. Good GPS fixes pull the estimate back.</p>
     <h3>Limitations</h3><p>Distances (~) assume a standing adult of the set height and a calibrated FOV. They're wrong for crouching, partly hidden or cut-off people (shown as ≤). Bearings depend on the compass, which is disturbed near metal, cars, rebar, magnets and replica bodies; recalibrate by moving the phone in a figure-8. Squad mates are <b>not</b> recognised by the camera; their markers come from the positions they share. Detection is COCO "person"/animals only. Foreground only: the screen must stay on and the app open; pauses are logged as gaps.</p>
-    <h3>Offline</h3><p>Open once with internet and Add to Home Screen. The app shell, libraries and detector are cached for use with no signal (status on the start screen). Sound classification downloads its model only if enabled.</p>
+    <h3>Map</h3><p>Tap the minimap to expand. <b>SAT/MAP/GRID</b> switches layer: Esri World Imagery or OpenStreetMap need signal; <b>SAVE AREA</b> downloads Sentinel-2 cloudless satellite tiles (coarser, ~10 m) for 0.5–2 km around you for use with no signal. Without a GPS fix the map shows a grid; in PDR mode it stays anchored to your last GPS fix (badge “PDR — estimated”). Tap the full map to drop a waypoint.</p><h3>Offline</h3><p>Open once with internet and Add to Home Screen. The app shell, libraries and detector are cached for use with no signal (status on the start screen). Sound classification downloads its model only if enabled.</p>
     <div id="help-env" class="mono muted"></div>
   </section>
 </div>
@@ -117,7 +118,7 @@
 <div id="toast" class="toast hidden"></div>
 <video id="nosleep" src="media/nosleep.mp4" playsinline muted loop style="position:absolute;width:1px;height:1px;opacity:0.01;left:-10px"></video>
 <script>window.SENTINEL_BASE = '';</script>
-<script src="js/core.js"></script><script src="js/track.js"></script><script src="js/geo.js"></script><script src="js/squad.js"></script><script src="js/detectors.js"></script>
+<script src="js/core.js"></script><script src="js/track.js"></script><script src="js/geo.js"></script><script src="js/tiles.js"></script><script src="js/squad.js"></script><script src="js/detectors.js"></script>
 <script src="vendor/jsQR.js"></script><script src="vendor/qrcode.js"></script>
 <script src="js/app.js"></script>
 </body>

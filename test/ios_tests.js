@@ -20,13 +20,13 @@ module.exports = async function (browser, BASE, check, newPage, OUT) {
   // (b) START ordering: orientation + motion + getCurrentPosition all inside the gesture; compass heading from webkitCompassHeading
   { const ctx = await browser.createBrowserContext(); await ctx.overridePermissions(new URL(BASE).origin, ['geolocation', 'camera']); const p = await newPage(ctx, 'iosB');
     await p.evaluateOnNewDocument(MOCK, { geoGesture: true }); await p.setGeolocation({ latitude: 40.7128, longitude: -74.006, accuracy: 85 });
-    await p.goto(BASE, { waitUntil: 'load' }); const ver = await p.$eval('#ver', e => e.textContent); check('start screen shows version', ver === 'v1.0.2', ver);
+    await p.goto(BASE, { waitUntil: 'load' }); const ver = await p.$eval('#ver', e => e.textContent); check('start screen shows version', ver === 'v1.1.0', ver);
     await p.click('#btn-start'); await p.waitForFunction(() => document.getElementById('start').classList.contains('hidden'), { timeout: 20000 });
     const calls = await p.evaluate(() => window.__permCalls), sens = await p.evaluate(() => ({ ori: __pe.sens.ori.perm, mot: __pe.sens.mot.perm }));
     check('START calls orientation, motion and getCurrentPosition synchronously inside the tap', ['orientation', 'motion', 'geo.getCurrentPosition'].every(n => calls.some(c => c.name === n && c.inGesture)) && calls.every(c => c.inGesture), { calls, sens });
     check('permissions granted state recorded', sens.ori === 'granted' && sens.mot === 'granted', sens);
     for (const h of [10, 20, 30, 40, 47]) { await p.evaluate(h => window.__fireOri({ alpha: 300, beta: 80, gamma: 0, webkitCompassHeading: h, webkitCompassAccuracy: 10 }), h); await sleep(30); }
-    await sleep(400); const hd = await p.evaluate(() => ({ h: Math.round(__pe.S && window.__pe.sens.ori.last.webkitCompassHeading), src: document.getElementById('t-hs').textContent }));
+    await sleep(1500); const hd = await p.evaluate(() => ({ h: Math.round(__pe.S && window.__pe.sens.ori.last.webkitCompassHeading), src: document.getElementById('t-hs').textContent }));
     const diag = await p.evaluate(() => { __pe.openSheet('sensors'); return document.getElementById('sensors').innerText; });
     check('heading follows webkitCompassHeading (47° → tape)', /Heading used\s+47°\s·\scompass/.test(diag), diag.split('\n').filter(l => /Heading used|webkit/.test(l)));
     await sleep(1600); const ll = await p.$eval('#t-ll', e => e.textContent);

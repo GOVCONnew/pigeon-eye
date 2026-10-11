@@ -89,9 +89,10 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     }
     await ctxB.close();
     // ---- iOS realism ----
+    await require('./map_tests.js')(browser, BASE, check, newPage, OUT);
     await require('./ios_tests.js')(browser, BASE, check, newPage, OUT);
     const swv = await A.evaluate(() => fetch('sw.js', { cache: 'no-store' }).then(r => r.text()).then(t => (t.match(/pe-v[\d.]+/) || [])[0]));
-    check('service worker version served = pe-v1.0.2', swv === 'pe-v1.0.2', swv);
+    check('service worker version served = pe-v1.1.0', swv === 'pe-v1.1.0', swv);
     // ---- 4. offline: service worker precache, go offline, reload ----
     await A.waitForFunction(() => /READY/.test(__pe.offline()), { timeout: 180000 }).catch(() => {});
     const offMsg = await A.evaluate(() => __pe.offline()); check('service worker precache ready', /READY/.test(offMsg), offMsg);
