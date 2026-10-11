@@ -1,0 +1,17 @@
+name: tests
+on: { push: { branches: [main] }, workflow_dispatch: {} }
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: mkdir -p /tmp/ci && cd /tmp/ci && npm init -y >/dev/null && npm i puppeteer-core@23 werift@0.19
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - run: ffmpeg -loglevel error -y -loop 1 -i test/person_dog.jpg -t 4 -vf "scale=720:-2,pad=720:1280:(ow-iw)/2:(oh-ih)/2,format=yuv420p" -r 10 /tmp/pe_cam.y4m
+      - run: node test/run_tests.js
+        env: { PUPPETEER: /tmp/ci/node_modules/puppeteer-core, WERIFT: /tmp/ci/node_modules/werift, CHROME: /usr/bin/google-chrome }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: results, path: "test/*.png\ntest/results.json" }

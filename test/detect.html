@@ -1,0 +1,12 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="icon" href="../icons/icon-192.png"><title>detector check</title></head><body>
+<script>window.SENTINEL_BASE = '../';</script>
+<script src="../vendor/tf.min.js"></script><script src="../js/core.js"></script><script src="../js/track.js"></script><script src="../js/detectors.js"></script>
+<script>
+async function img(src) { const i = new Image(); i.src = src; await i.decode(); return i; }
+window.run = async function (model, files) {
+  await SDet2.load(model); const out = [];
+  for (const f of files) { const im = await img(f); const r = await SDet2.detect(im, im.naturalWidth, im.naturalHeight, { floor: 0.15, iou: 0.5 });
+    out.push({ file: f, ms: r.t.pre + r.t.infer + r.t.post, dets: r.dets.map(d => ({ cls: d.cls, score: +d.score.toFixed(3), group: STrack.groupOf(d.cls) })) }); }
+  return { backend: SDet2.current().backend, label: SDet2.current().label, out };
+};
+</script></body></html>

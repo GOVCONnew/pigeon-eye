@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PIGEON EYE">
+<meta name="theme-color" content="#000000">
+<meta name="format-detection" content="telephone=no">
+<title>NEWTON · PIGEON EYE</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="start" class="overlay">
+  <div class="brandbig"><span class="logo">NEWTON</span><span class="title">PIGEON EYE</span><span class="tag">Recreational airsoft / casual-play awareness HUD · on-device · nothing uploaded</span></div>
+  <ol id="perm" class="perm">
+    <li id="p-cam">Camera — <b>waiting</b></li>
+    <li id="p-ori">Compass / orientation — <b>waiting</b></li>
+    <li id="p-mot">Motion (step counting) — <b>waiting</b></li>
+    <li id="p-geo">Location (GPS) — <b>waiting</b></li>
+  </ol>
+  <div id="model-status" class="mono muted">Detector: loading…</div>
+  <div id="offline-status" class="mono muted">Offline cache: checking…</div>
+  <div class="warn">Works only in the foreground with the screen on. Distances and dead-reckoned positions are estimates.</div>
+  <button id="btn-start" class="btn primary big">START</button>
+  <button id="btn-start-help" class="btn ghost">HELP</button>
+</div>
+
+<div id="stage">
+  <video id="cam" playsinline muted autoplay webkit-playsinline></video>
+  <canvas id="hud"></canvas>
+  <div id="topbar" class="topbar mono">
+    <span id="t-mode" class="pill">PDR</span><span id="t-acc">±--</span><span id="t-ll">--</span>
+    <span class="sp"></span><span id="t-link" class="pill dim">SOLO</span><span id="t-bat"></span><span id="t-clock">--:--:--</span>
+  </div>
+  <div id="counts" class="counts mono"></div>
+  <canvas id="minimap" class="minimap"></canvas>
+  <div id="mapbar" class="mapbar hidden"><button class="btn sm" id="m-mode">HEADING-UP</button><button class="btn sm" id="m-zin">＋</button><button class="btn sm" id="m-zout">－</button><span class="mono muted" id="m-scale"></span><span class="sp"></span><span class="mono muted">tap map = waypoint</span><button class="btn sm primary" id="m-close">CLOSE</button></div>
+  <div id="bottombar" class="bottombar">
+    <button class="btn" id="b-clear">MARK CLEAR</button><button class="btn" id="b-wp">WAYPOINT</button><button class="btn" id="b-squad">SQUAD</button><button class="btn" id="b-big">BIG</button><button class="btn" id="b-menu">MENU</button>
+  </div>
+  <div id="gapbanner" class="gapbanner hidden">PAUSED — NOT TRACKING</div>
+</div>
+
+<div id="sheet" class="sheet hidden">
+  <div class="sheethead"><div class="tabs" id="tabs">
+    <button data-p="squad">SQUAD</button><button data-p="settings">SETTINGS</button><button data-p="log">LOG</button><button data-p="diag">DIAG</button><button data-p="help">HELP</button></div>
+    <button class="btn sm" id="sheet-close">✕</button></div>
+  <section id="p-squad" class="pane">
+    <div id="sq-roster" class="card mono"></div>
+    <div class="card">
+      <h3>Local link (no internet) — QR pairing</h3>
+      <p class="muted">All phones on the same Wi-Fi or one phone's <b>Personal Hotspot</b>. Host shows an offer QR → joiner scans it and shows an answer QR → host scans that. Repeat per member (2–6).</p>
+      <div class="row"><button class="btn primary" id="sq-host">HOST: NEW OFFER</button><button class="btn" id="sq-host-scan">HOST: SCAN ANSWER</button></div>
+      <div class="row"><button class="btn primary" id="sq-join-scan">JOIN: SCAN OFFER</button></div>
+      <div id="sq-qr" class="qrbox"></div>
+      <details><summary class="muted">paste code instead of scanning</summary><textarea id="sq-paste" rows="3" placeholder="PE1.…"></textarea><div class="row"><button class="btn sm" id="sq-paste-go">USE CODE</button><button class="btn sm" id="sq-copy">COPY MY CODE</button></div></details>
+    </div>
+    <div class="card">
+      <h3>Sync start point</h3>
+      <p class="muted">Stand together, all facing the same way, then the host taps SYNC. Everyone's dead-reckoning frame resets to this shared point.</p>
+      <button class="btn warn" id="sq-sync">SYNC START POINT</button>
+    </div>
+    <div class="card">
+      <h3>Online mode (optional, needs internet)</h3>
+      <p class="muted">Uses the free PeerJS cloud <b>only for signaling metadata</b> (connection offers). Positions and markers still go phone-to-phone.</p>
+      <div class="row"><button class="btn" id="sq-on-host">HOST ONLINE</button><input id="sq-on-code" placeholder="host code"><button class="btn" id="sq-on-join">JOIN</button></div>
+      <div id="sq-on-status" class="mono muted"></div>
+    </div>
+  </section>
+  <section id="p-settings" class="pane">
+    <div class="card">
+      <label>Callsign <input id="s-call" maxlength="12"></label>
+      <label>Colour <input id="s-color" type="color"></label>
+      <label>Camera FOV (long side) <input id="s-fov" type="number" min="30" max="120" step="0.5"> °</label>
+      <label>Assumed person height <input id="s-ph" type="number" min="1" max="2.2" step="0.01"> m</label>
+      <div class="row"><input id="s-cal-d" type="number" placeholder="known distance m" style="width:150px"><button class="btn sm" id="s-cal">CALIBRATE FOV from confirmed person</button></div>
+      <label>Step length <input id="s-step" type="number" min="0.3" max="1.5" step="0.01"> m</label>
+      <div class="row"><input id="s-step-d" type="number" placeholder="walked distance m" style="width:150px"><button class="btn sm" id="s-step-start">START STEP CAL</button><button class="btn sm" id="s-step-stop">STOP &amp; SET</button></div>
+      <div id="s-step-info" class="mono muted"></div>
+      <label class="chk"><input type="checkbox" id="s-animals"> Detect animals</label>
+      <label class="chk"><input type="checkbox" id="s-vehicles"> Detect vehicles</label>
+      <label class="chk"><input type="checkbox" id="s-audio"> Sound classification (YAMNet, +16 MB download)</label>
+      <label class="chk"><input type="checkbox" id="s-low"> Low power (slower detection)</label>
+      <label>Detector <select id="s-model"><option value="effdet0">EfficientDet-Lite0 (default)</option><option value="coco-lite">COCO-SSD lite (fallback)</option></select></label>
+    </div>
+  </section>
+  <section id="p-log" class="pane">
+    <div class="row wrap"><button class="btn" id="x-json">JSON</button><button class="btn" id="x-csv">EVENTS CSV</button><button class="btn" id="x-path-csv">PATH CSV</button><button class="btn" id="x-geojson">GeoJSON</button><button class="btn danger" id="x-clear">CLEAR</button></div>
+    <div id="x-links" class="dl-links"></div>
+    <ul id="log-list" class="log-list mono"></ul>
+  </section>
+  <section id="p-diag" class="pane"><table id="diag" class="kv mono"></table></section>
+  <section id="p-help" class="pane help">
+    <h3>What it is</h3><p>A heads-up awareness overlay for <b>recreational airsoft and casual play with friends</b>. It shows heading, your position, squad mates, waypoints, rooms you marked clear, and people/animals the camera has <b>confirmed</b>. No scoring, nothing uploaded.</p>
+    <h3>Start</h3><p>Tap <b>START</b>. Allow camera, then <b>Motion &amp; Orientation</b> (needed for compass and step counting), then location. If you denied something: tap <b>aA</b> → Website Settings, or Settings › Apps › Safari (Camera, Microphone, Location, Motion &amp; Orientation Access), then reload.</p>
+    <h3>Squad over a hotspot (no internet)</h3><p>1. One phone turns on <b>Personal Hotspot</b>; others join it (or all join the same Wi-Fi). 2. Everyone opens PIGEON EYE and taps START (camera permission also lets Safari use local network addresses). 3. Host: SQUAD → HOST: NEW OFFER (QR appears). 4. Joiner: JOIN: SCAN OFFER → point at host's QR → an answer QR appears. 5. Host: HOST: SCAN ANSWER → point at joiner's QR. Link shows "direct" with latency. Repeat 3–5 for each member (host relays to everyone, 2–6 phones). 6. Stand together and tap <b>SYNC START POINT</b>.</p>
+    <p>If pairing never connects: Safari may hide local IPs behind mDNS names that some hotspots don't resolve. Try the hotspot phone as host, make sure every phone granted camera permission, keep screens on during pairing, or use Online mode when you have signal.</p>
+    <h3>Calibration</h3><p><b>FOV</b>: stand a friend of known height at a measured distance (e.g. 10 m), wait for the confirmed box, enter the distance and tap CALIBRATE. <b>Step length</b>: tap START STEP CAL, walk a measured distance normally, enter it, tap STOP &amp; SET.</p>
+    <h3>Positioning</h3><p><b>GPS</b> mode when the fix is ≤15 m accurate; otherwise <b>PDR</b> (pedestrian dead reckoning: steps × step length along the compass). PDR drifts, typically 5–10 % of the distance walked, and heading errors bend the path. The accuracy figure grows as you walk. Good GPS fixes pull the estimate back.</p>
+    <h3>Limitations</h3><p>Distances (~) assume a standing adult of the set height and a calibrated FOV. They're wrong for crouching, partly hidden or cut-off people (shown as ≤). Bearings depend on the compass, which is disturbed near metal, cars, rebar, magnets and replica bodies; recalibrate by moving the phone in a figure-8. Squad mates are <b>not</b> recognised by the camera; their markers come from the positions they share. Detection is COCO "person"/animals only. Foreground only: the screen must stay on and the app open; pauses are logged as gaps.</p>
+    <h3>Offline</h3><p>Open once with internet and Add to Home Screen. The app shell, libraries and detector are cached for use with no signal (status on the start screen). Sound classification downloads its model only if enabled.</p>
+    <div id="help-env" class="mono muted"></div>
+  </section>
+</div>
+<div id="scanner" class="overlay hidden"><video id="scanvid" playsinline muted autoplay></video><div class="scanframe"></div><div id="scan-msg" class="mono">Point at the QR code</div><button class="btn" id="scan-cancel">CANCEL</button></div>
+<div id="dialog" class="dialog hidden"></div>
+<div id="toast" class="toast hidden"></div>
+<video id="nosleep" src="media/nosleep.mp4" playsinline muted loop style="position:absolute;width:1px;height:1px;opacity:0.01;left:-10px"></video>
+<script>window.SENTINEL_BASE = '';</script>
+<script src="js/core.js"></script><script src="js/track.js"></script><script src="js/geo.js"></script><script src="js/squad.js"></script><script src="js/detectors.js"></script>
+<script src="vendor/jsQR.js"></script><script src="vendor/qrcode.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
