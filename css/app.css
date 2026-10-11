@@ -35,3 +35,5 @@ table.kv { width: 100%; border-collapse: collapse; font-size: 12px; } table.kv t
 .toast { position: fixed; z-index: 40; left: 50%; transform: translateX(-50%); bottom: 90px; background: #000e; border: 1px solid var(--acid); padding: 8px 14px; font: 12px var(--mono); border-radius: 4px; }
 body.big { --fs: 1.45; } body.big .minimap:not(.full) { width: 190px; height: 190px; }
 body.big .topbar { top: calc(env(safe-area-inset-top) + 98px); } body.big .counts { top: calc(env(safe-area-inset-top) + 128px); }
+.compassbtn { position: absolute; right: 8px; top: calc(env(safe-area-inset-top) + 122px); z-index: 4; } .warnt { color: var(--warn); }
+.updbanner { position: absolute; z-index: 7; left: 10px; right: 10px; top: calc(env(safe-area-inset-top) + 150px); background: #000e; border: 1px solid var(--acid); padding: 8px; font: 13px var(--mono); text-align: center; }

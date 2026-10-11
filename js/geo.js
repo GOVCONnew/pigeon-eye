@@ -31,6 +31,9 @@
   // ---- minimap ----
   /** Project ENU point (metres) to minimap pixels. me = ENU of user, mode 'heading'|'north', scale px per metre. */
   function project(p, me, mode, heading, scale, cx, cy) {
+    // NaN guards: a missing heading must never blank the map; bad points are dropped (null) instead of poisoning the path
+    if (!p || !isFinite(p.x) || !isFinite(p.y)) return null; if (!me || !isFinite(me.x) || !isFinite(me.y)) me = { x: 0, y: 0 };
+    if (!isFinite(heading)) heading = 0; if (!isFinite(scale) || scale <= 0) scale = 1;
     var dx = p.x - me.x, dy = p.y - me.y;
     if (mode === 'heading') { var t = heading * D2R, rx = dx * Math.cos(t) - dy * Math.sin(t), ry = dx * Math.sin(t) + dy * Math.cos(t); dx = rx; dy = ry; }
     return { x: cx + dx * scale, y: cy - dy * scale };

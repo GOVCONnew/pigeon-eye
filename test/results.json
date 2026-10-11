@@ -1,6 +1,6 @@
 {
   "unit": {
-    "pass": 39,
+    "pass": 44,
     "fail": 0
   },
   "checks": [
@@ -38,7 +38,7 @@
           "fp": 3,
           "fn": 0
         },
-        "p50ms": 91
+        "p50ms": 88
       }
     },
     {
@@ -85,7 +85,7 @@
           "fp": 0,
           "fn": 3
         },
-        "p50ms": 340
+        "p50ms": 343
       }
     },
     {
@@ -142,26 +142,153 @@
     {
       "name": "path CSV export",
       "ok": true,
-      "info": "2026-10-11T13:09:17.883Z,0,0,38.889484,-77.035278,GPS,6,45,"
+      "info": "2026-10-11T13:40:53.800Z,0,0,38.889484,-77.035278,GPS,6,45,"
     },
     {
       "name": "offer QR renders and decodes (jsQR) to the offer code",
       "ok": true,
       "info": {
-        "len": 487
+        "len": 482
       }
     },
     {
       "name": "answer QR renders and decodes",
       "ok": true,
       "info": {
-        "len": 478
+        "len": 480
       }
     },
     {
       "name": "WebRTC browser↔browser link",
       "ok": true,
       "info": "skipped: this Chrome gathered 0 ICE candidates (sandbox without enumerable network interfaces); see squad_node + CI run"
+    },
+    {
+      "name": "iOS mock: requestPermission succeeds in tap, rejects after an await on async work like getUserMedia (control)",
+      "ok": true,
+      "info": [
+        {
+          "name": "orientation",
+          "inGesture": true
+        },
+        {
+          "name": "orientation",
+          "inGesture": false
+        }
+      ]
+    },
+    {
+      "name": "start screen shows version",
+      "ok": true,
+      "info": "v1.0.2"
+    },
+    {
+      "name": "START calls orientation, motion and getCurrentPosition synchronously inside the tap",
+      "ok": true,
+      "info": {
+        "calls": [
+          {
+            "name": "orientation",
+            "inGesture": true
+          },
+          {
+            "name": "motion",
+            "inGesture": true
+          },
+          {
+            "name": "geo.getCurrentPosition",
+            "inGesture": true
+          }
+        ],
+        "sens": {
+          "ori": "granted",
+          "mot": "granted"
+        }
+      }
+    },
+    {
+      "name": "permissions granted state recorded",
+      "ok": true,
+      "info": {
+        "ori": "granted",
+        "mot": "granted"
+      }
+    },
+    {
+      "name": "heading follows webkitCompassHeading (47° → tape)",
+      "ok": true,
+      "info": [
+        "webkitCompassHeading\t47.0 · accuracy 10.0°",
+        "Heading used\t47° · compass (webkitCompassHeading) · screen angle 0°"
+      ]
+    },
+    {
+      "name": "GPS coords + accuracy shown even when > 15 m (fusion still PDR)",
+      "ok": true,
+      "info": "40.71280 -74.00600 ±85m"
+    },
+    {
+      "name": "null webkitCompassHeading → alpha fallback, flagged RELATIVE with calibration note",
+      "ok": true,
+      "info": {
+        "hs": "HDG RELATIVE",
+        "note": "webkitCompassHeading null — enable Settings › Privacy › Location Services › System Services › Compass Calibration, then figure-8"
+      }
+    },
+    {
+      "name": "denied orientation → ENABLE COMPASS button shown",
+      "ok": true,
+      "info": {
+        "perm": "denied",
+        "btn": true,
+        "geo": "GPS DENIED"
+      }
+    },
+    {
+      "name": "geolocation denied → HUD says GPS DENIED",
+      "ok": true,
+      "info": "GPS DENIED"
+    },
+    {
+      "name": "ENABLE COMPASS retries inside the fresh tap → granted",
+      "ok": true,
+      "info": {
+        "perm": "granted",
+        "calls": [
+          {
+            "name": "orientation",
+            "inGesture": true
+          },
+          {
+            "name": "motion",
+            "inGesture": true
+          },
+          {
+            "name": "orientation",
+            "inGesture": true
+          },
+          {
+            "name": "motion",
+            "inGesture": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "minimap renders with no GPS and NaN heading (PDR path, DPR-sized canvas)",
+      "ok": true,
+      "info": {
+        "lit": 4290,
+        "w": 300,
+        "err": {},
+        "path": 8,
+        "finite": true
+      }
+    },
+    {
+      "name": "service worker version served = pe-v1.0.2",
+      "ok": true,
+      "info": "pe-v1.0.2"
     },
     {
       "name": "service worker precache ready",
@@ -185,11 +312,11 @@
   ],
   "squadNode": [
     {
-      "name": "pairing FALCON: offer 584 / answer 590 chars (QR-sized), 2 host candidates",
+      "name": "pairing FALCON: offer 586 / answer 590 chars (QR-sized), 2 host candidates",
       "ok": true
     },
     {
-      "name": "pairing OWL: offer 579 / answer 586 chars (QR-sized), 2 host candidates",
+      "name": "pairing OWL: offer 586 / answer 583 chars (QR-sized), 2 host candidates",
       "ok": true
     },
     {
@@ -265,7 +392,7 @@
       "fp": 3,
       "fn": 0
     },
-    "p50ms": 91
+    "p50ms": 88
   },
   "eval_coco-lite": {
     "person": {
@@ -282,7 +409,7 @@
       "fp": 0,
       "fn": 3
     },
-    "p50ms": 340
+    "p50ms": 343
   },
   "squadBrowser": "skipped: this Chrome gathered 0 ICE candidates (sandbox without enumerable network interfaces); see squad_node + CI run",
   "base": "http://localhost:8765/",

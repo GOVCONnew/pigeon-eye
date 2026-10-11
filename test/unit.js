@@ -25,6 +25,11 @@ t('minimap north-up: east point right', () => { const p = G.project({ x: 5, y: 0
 t('minimap heading-up: target dead ahead is straight up', () => { const tgt = G.polarToENU(60, 20), p = G.project(tgt, { x: 0, y: 0 }, 'heading', 60, 1, 50, 50); near(p.x, 50, 1e-9); near(p.y, 30, 1e-9); });
 t('minimap heading-up: target 90° right of heading appears right', () => { const tgt = G.polarToENU(150, 20), p = G.project(tgt, { x: 0, y: 0 }, 'heading', 60, 1, 50, 50); near(p.x, 70, 1e-9); near(p.y, 50, 1e-9); });
 t('minimap: offset by own position', () => { const p = G.project({ x: 12, y: 3 }, { x: 10, y: 3 }, 'north', 0, 3, 0, 0); near(p.x, 6, 1e-9); near(p.y, 0, 1e-9); });
+t('minimap NaN guard: NaN heading → treated as 0 (finite output)', () => { const p = G.project({ x: 3, y: 4 }, { x: 0, y: 0 }, 'heading', NaN, 2, 50, 50); assert(isFinite(p.x) && isFinite(p.y)); near(p.x, 56, 1e-9); near(p.y, 42, 1e-9); });
+t('minimap NaN guard: undefined/null heading', () => { [undefined, null, Infinity].forEach(h => { const p = G.project({ x: 1, y: 1 }, { x: 0, y: 0 }, 'heading', h, 1, 0, 0); assert(isFinite(p.x) && isFinite(p.y)); }); });
+t('minimap NaN guard: NaN point → null (skipped, not drawn)', () => { assert.strictEqual(G.project({ x: NaN, y: 1 }, { x: 0, y: 0 }, 'north', 0, 1, 0, 0), null); assert.strictEqual(G.project(null, { x: 0, y: 0 }, 'north', 0, 1, 0, 0), null); });
+t('minimap NaN guard: NaN own position → centred at origin', () => { const p = G.project({ x: 2, y: 0 }, { x: NaN, y: 0 }, 'north', 0, 1, 10, 10); near(p.x, 12, 1e-9); });
+t('minimap NaN guard: bad scale', () => { const p = G.project({ x: 2, y: 0 }, { x: 0, y: 0 }, 'north', 0, NaN, 0, 0); assert(isFinite(p.x)); });
 // --- off-screen ---
 t('edge: in-view target → null', () => assert.strictEqual(G.edgeIndicator(100, 90, 45, 400, 800), null));
 t('edge: target to the right → right edge', () => { const e = G.edgeIndicator(90, 0, 45, 400, 800, 20); near(e.x, 380, 1e-6); near(e.y, 400, 1e-6); });

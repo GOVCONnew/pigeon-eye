@@ -17,7 +17,7 @@
 </head>
 <body>
 <div id="start" class="overlay">
-  <div class="brandbig"><span class="logo">NEWTON</span><span class="title">PIGEON EYE</span><span class="tag">Recreational airsoft / casual-play awareness HUD · on-device · nothing uploaded</span></div>
+  <div class="brandbig"><span class="logo">NEWTON</span><span class="title">PIGEON EYE</span><span id="ver" class="mono muted">v?</span><span class="tag">Recreational airsoft / casual-play awareness HUD · on-device · nothing uploaded</span></div>
   <ol id="perm" class="perm">
     <li id="p-cam">Camera — <b>waiting</b></li>
     <li id="p-ori">Compass / orientation — <b>waiting</b></li>
@@ -36,7 +36,7 @@
   <canvas id="hud"></canvas>
   <div id="topbar" class="topbar mono">
     <span id="t-mode" class="pill">PDR</span><span id="t-acc">±--</span><span id="t-ll">--</span>
-    <span class="sp"></span><span id="t-link" class="pill dim">SOLO</span><span id="t-bat"></span><span id="t-clock">--:--:--</span>
+    <span id="t-hs" class="warnt"></span><span class="sp"></span><span id="t-link" class="pill dim">SOLO</span><span id="t-bat"></span><span id="t-clock">--:--:--</span>
   </div>
   <div id="counts" class="counts mono"></div>
   <canvas id="minimap" class="minimap"></canvas>
@@ -44,12 +44,14 @@
   <div id="bottombar" class="bottombar">
     <button class="btn" id="b-clear">MARK CLEAR</button><button class="btn" id="b-wp">WAYPOINT</button><button class="btn" id="b-squad">SQUAD</button><button class="btn" id="b-big">BIG</button><button class="btn" id="b-menu">MENU</button>
   </div>
+  <button id="b-compass" class="btn warn compassbtn hidden">ENABLE COMPASS</button>
+  <div id="updbanner" class="updbanner hidden">Update available — <button class="btn sm primary" onclick="location.reload()">RELOAD</button></div>
   <div id="gapbanner" class="gapbanner hidden">PAUSED — NOT TRACKING</div>
 </div>
 
 <div id="sheet" class="sheet hidden">
   <div class="sheethead"><div class="tabs" id="tabs">
-    <button data-p="squad">SQUAD</button><button data-p="settings">SETTINGS</button><button data-p="log">LOG</button><button data-p="diag">DIAG</button><button data-p="help">HELP</button></div>
+    <button data-p="squad">SQUAD</button><button data-p="settings">SETTINGS</button><button data-p="log">LOG</button><button data-p="sensors">SENSORS</button><button data-p="diag">DIAG</button><button data-p="help">HELP</button></div>
     <button class="btn sm" id="sheet-close">✕</button></div>
   <section id="p-squad" class="pane">
     <div id="sq-roster" class="card mono"></div>
@@ -95,12 +97,14 @@
     <div id="x-links" class="dl-links"></div>
     <ul id="log-list" class="log-list mono"></ul>
   </section>
+  <section id="p-sensors" class="pane"><div class="row"><button class="btn warn" id="sn-compass">ENABLE COMPASS / MOTION / GPS</button></div><p class="muted">Screenshot this panel if sensors misbehave.</p><table id="sensors" class="kv mono"></table></section>
   <section id="p-diag" class="pane"><table id="diag" class="kv mono"></table></section>
   <section id="p-help" class="pane help">
     <h3>What it is</h3><p>A heads-up awareness overlay for <b>recreational airsoft and casual play with friends</b>. It shows heading, your position, squad mates, waypoints, rooms you marked clear, and people/animals the camera has <b>confirmed</b>. No scoring, nothing uploaded.</p>
     <h3>Start</h3><p>Tap <b>START</b>. Allow camera, then <b>Motion &amp; Orientation</b> (needed for compass and step counting), then location. If you denied something: tap <b>aA</b> → Website Settings, or Settings › Apps › Safari (Camera, Microphone, Location, Motion &amp; Orientation Access), then reload.</p>
     <h3>Squad over a hotspot (no internet)</h3><p>1. One phone turns on <b>Personal Hotspot</b>; others join it (or all join the same Wi-Fi). 2. Everyone opens PIGEON EYE and taps START (camera permission also lets Safari use local network addresses). 3. Host: SQUAD → HOST: NEW OFFER (QR appears). 4. Joiner: JOIN: SCAN OFFER → point at host's QR → an answer QR appears. 5. Host: HOST: SCAN ANSWER → point at joiner's QR. Link shows "direct" with latency. Repeat 3–5 for each member (host relays to everyone, 2–6 phones). 6. Stand together and tap <b>SYNC START POINT</b>.</p>
     <p>If pairing never connects: Safari may hide local IPs behind mDNS names that some hotspots don't resolve. Try the hotspot phone as host, make sure every phone granted camera permission, keep screens on during pairing, or use Online mode when you have signal.</p>
+    <h3>Compass / GPS not working on iPhone?</h3><p>Tap <b>ENABLE COMPASS</b> (or SENSORS › ENABLE) and choose Allow. If no prompt appears: Settings › Apps › Safari › <b>Motion &amp; Orientation Access</b> on; for location: Settings › Privacy &amp; Security › Location Services on, Safari Websites (or the Home Screen app) → While Using + <b>Precise Location</b> on. Compass heading also needs Location Services › System Services › <b>Compass Calibration</b>. A Home Screen app keeps its own permissions; if it still runs an old version, delete the icon and add it again.</p>
     <h3>Calibration</h3><p><b>FOV</b>: stand a friend of known height at a measured distance (e.g. 10 m), wait for the confirmed box, enter the distance and tap CALIBRATE. <b>Step length</b>: tap START STEP CAL, walk a measured distance normally, enter it, tap STOP &amp; SET.</p>
     <h3>Positioning</h3><p><b>GPS</b> mode when the fix is ≤15 m accurate; otherwise <b>PDR</b> (pedestrian dead reckoning: steps × step length along the compass). PDR drifts, typically 5–10 % of the distance walked, and heading errors bend the path. The accuracy figure grows as you walk. Good GPS fixes pull the estimate back.</p>
     <h3>Limitations</h3><p>Distances (~) assume a standing adult of the set height and a calibrated FOV. They're wrong for crouching, partly hidden or cut-off people (shown as ≤). Bearings depend on the compass, which is disturbed near metal, cars, rebar, magnets and replica bodies; recalibrate by moving the phone in a figure-8. Squad mates are <b>not</b> recognised by the camera; their markers come from the positions they share. Detection is COCO "person"/animals only. Foreground only: the screen must stay on and the app open; pauses are logged as gaps.</p>
