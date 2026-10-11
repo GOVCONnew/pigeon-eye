@@ -1,0 +1,374 @@
+{
+  "unit": {
+    "pass": 39,
+    "fail": 0
+  },
+  "checks": [
+    {
+      "name": "detector effdet0 (mediapipe-cpu) finds person + dog in person_dog.jpg",
+      "ok": true,
+      "info": [
+        {
+          "cls": "person",
+          "score": 0.907,
+          "group": "person"
+        },
+        {
+          "cls": "dog",
+          "score": 0.546,
+          "group": "animal"
+        }
+      ]
+    },
+    {
+      "name": "detector effdet0 eval set (82 imgs) image-level",
+      "ok": true,
+      "info": {
+        "person": {
+          "P": 1,
+          "R": 0.94,
+          "tp": 16,
+          "fp": 0,
+          "fn": 1
+        },
+        "animal": {
+          "P": 0.87,
+          "R": 1,
+          "tp": 20,
+          "fp": 3,
+          "fn": 0
+        },
+        "p50ms": 83
+      }
+    },
+    {
+      "name": "detector coco-lite (webgl) finds person + dog in person_dog.jpg",
+      "ok": true,
+      "info": [
+        {
+          "cls": "dog",
+          "score": 0.906,
+          "group": "animal"
+        },
+        {
+          "cls": "person",
+          "score": 0.679,
+          "group": "person"
+        },
+        {
+          "cls": "person",
+          "score": 0.379,
+          "group": "person"
+        },
+        {
+          "cls": "dog",
+          "score": 0.193,
+          "group": "animal"
+        }
+      ]
+    },
+    {
+      "name": "detector coco-lite eval set (82 imgs) image-level",
+      "ok": true,
+      "info": {
+        "person": {
+          "P": 0.93,
+          "R": 0.76,
+          "tp": 13,
+          "fp": 1,
+          "fn": 4
+        },
+        "animal": {
+          "P": 1,
+          "R": 0.85,
+          "tp": 17,
+          "fp": 0,
+          "fn": 3
+        },
+        "p50ms": 621
+      }
+    },
+    {
+      "name": "detector loads in app",
+      "ok": true,
+      "info": "Detector: EfficientDet-Lite0 (MediaPipe, Apache-2.0) · mediapipe-cpu"
+    },
+    {
+      "name": "confirmed contacts with ~distance & bearing",
+      "ok": true,
+      "info": [
+        {
+          "cls": "person",
+          "d": 1.2,
+          "brg": 48,
+          "conf": 0.82
+        },
+        {
+          "cls": "dog",
+          "d": 0.7,
+          "brg": 32.9,
+          "conf": 0.71
+        }
+      ]
+    },
+    {
+      "name": "HUD state (mode, rooms, waypoints, path)",
+      "ok": true,
+      "info": {
+        "mode": "GPS",
+        "rooms": [
+          "Room 1",
+          "Shed"
+        ],
+        "wps": 2,
+        "path": 23,
+        "counts": "PERSON 1  DOG 1"
+      }
+    },
+    {
+      "name": "GeoJSON export: path LineString + waypoint/room points",
+      "ok": true,
+      "info": {
+        "features": 5
+      }
+    },
+    {
+      "name": "session JSON export",
+      "ok": true,
+      "info": {
+        "events": 7
+      }
+    },
+    {
+      "name": "path CSV export",
+      "ok": true,
+      "info": "2026-10-11T13:12:03.414Z,0,0,38.889484,-77.035278,GPS,6,45,"
+    },
+    {
+      "name": "offer QR renders and decodes (jsQR) to the offer code",
+      "ok": true,
+      "info": {
+        "len": 619
+      }
+    },
+    {
+      "name": "answer QR renders and decodes",
+      "ok": true,
+      "info": {
+        "len": 562
+      }
+    },
+    {
+      "name": "WebRTC data channel open (iceServers: [])",
+      "ok": true,
+      "info": {
+        "linkA": [
+          {
+            "id": "5gytghrz",
+            "callsign": "FALCON",
+            "color": "#FF66CC",
+            "link": "direct",
+            "rtt": null,
+            "state": "live",
+            "age": 3
+          }
+        ],
+        "candidates": [
+          "10.1.0.207 53687 typ host",
+          "10.1.0.207 9 typ host"
+        ]
+      }
+    },
+    {
+      "name": "host receives member position (≈10 m east after sync)",
+      "ok": true,
+      "info": [
+        {
+          "cs": "FALCON",
+          "x": 10.1,
+          "y": 0,
+          "mode": "PDR"
+        }
+      ]
+    },
+    {
+      "name": "host receives member waypoint + room clear",
+      "ok": true,
+      "info": {
+        "st": [
+          {
+            "cs": "FALCON",
+            "x": 10.1,
+            "y": 0,
+            "mode": "PDR"
+          }
+        ],
+        "wps": [
+          "RALLY",
+          "BASE",
+          "FALCON-WP"
+        ],
+        "rooms": [
+          "Room 1",
+          "Shed",
+          "Barn"
+        ],
+        "rtt": [
+          1
+        ]
+      }
+    },
+    {
+      "name": "member receives host waypoints/rooms (bundle) and sync",
+      "ok": true,
+      "info": {
+        "st": [
+          {
+            "cs": "PIGEON-29",
+            "mode": "PDR"
+          }
+        ],
+        "wps": [
+          "RALLY",
+          "BASE",
+          "FALCON-WP"
+        ],
+        "rooms": [
+          "Room 1",
+          "Shed",
+          "Barn"
+        ],
+        "synced": true
+      }
+    },
+    {
+      "name": "latency measured",
+      "ok": true,
+      "info": [
+        1
+      ]
+    },
+    {
+      "name": "service worker precache ready",
+      "ok": true,
+      "info": "READY — works with no signal (23 files)"
+    },
+    {
+      "name": "offline reload: app + detector load from cache",
+      "ok": true,
+      "info": {
+        "title": "NEWTON · PIGEON EYE",
+        "model": "Detector: EfficientDet-Lite0 (MediaPipe, Apache-2.0) · mediapipe-cpu",
+        "online": false
+      }
+    },
+    {
+      "name": "no JS errors",
+      "ok": true,
+      "info": []
+    }
+  ],
+  "squadNode": [
+    {
+      "name": "pairing FALCON: offer 596 / answer 598 chars (QR-sized), 2 host candidates",
+      "ok": true
+    },
+    {
+      "name": "pairing OWL: offer 592 / answer 592 chars (QR-sized), 2 host candidates",
+      "ok": true
+    },
+    {
+      "name": "host has 2 direct links",
+      "ok": true,
+      "info": [
+        "FALCON:direct",
+        "OWL:direct"
+      ]
+    },
+    {
+      "name": "members learn full roster via host",
+      "ok": true,
+      "info": {
+        "m1": [
+          "HAWK:direct",
+          "OWL:via host"
+        ],
+        "m2": [
+          "HAWK:direct",
+          "FALCON:via host"
+        ],
+        "m2msgs": [
+          "hello",
+          "roster",
+          "roster",
+          "hello",
+          "roster"
+        ]
+      }
+    },
+    {
+      "name": "member→host position",
+      "ok": true
+    },
+    {
+      "name": "member→member waypoint relayed by host (star)",
+      "ok": true
+    },
+    {
+      "name": "host room-clear + sync reach both members",
+      "ok": true
+    },
+    {
+      "name": "latency (RTT) measured on both links",
+      "ok": true,
+      "info": [
+        3,
+        3
+      ]
+    },
+    {
+      "name": "closed member goes stale/fading on host",
+      "ok": true,
+      "info": [
+        "FALCON:live",
+        "OWL:stale"
+      ]
+    }
+  ],
+  "eval_effdet0": {
+    "person": {
+      "P": 1,
+      "R": 0.94,
+      "tp": 16,
+      "fp": 0,
+      "fn": 1
+    },
+    "animal": {
+      "P": 0.87,
+      "R": 1,
+      "tp": 20,
+      "fp": 3,
+      "fn": 0
+    },
+    "p50ms": 83
+  },
+  "eval_coco-lite": {
+    "person": {
+      "P": 0.93,
+      "R": 0.76,
+      "tp": 13,
+      "fp": 1,
+      "fn": 4
+    },
+    "animal": {
+      "P": 1,
+      "R": 0.85,
+      "tp": 17,
+      "fp": 0,
+      "fn": 3
+    },
+    "p50ms": 621
+  },
+  "base": "http://localhost:8765/",
+  "ok": true
+}

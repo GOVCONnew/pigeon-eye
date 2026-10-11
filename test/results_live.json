@@ -38,7 +38,7 @@
           "fp": 3,
           "fn": 0
         },
-        "p50ms": 93
+        "p50ms": 90
       }
     },
     {
@@ -85,7 +85,7 @@
           "fp": 0,
           "fn": 3
         },
-        "p50ms": 344
+        "p50ms": 363
       }
     },
     {
@@ -142,20 +142,20 @@
     {
       "name": "path CSV export",
       "ok": true,
-      "info": "2026-10-11T13:07:15.576Z,0,0,38.889484,-77.035278,GPS,6,45,"
+      "info": "2026-10-11T13:11:53.477Z,0,0,38.889484,-77.035278,GPS,6,45,"
     },
     {
       "name": "offer QR renders and decodes (jsQR) to the offer code",
       "ok": true,
       "info": {
-        "len": 487
+        "len": 490
       }
     },
     {
       "name": "answer QR renders and decodes",
       "ok": true,
       "info": {
-        "len": 483
+        "len": 472
       }
     },
     {
@@ -185,11 +185,11 @@
   ],
   "squadNode": [
     {
-      "name": "pairing FALCON: offer 590 / answer 588 chars (QR-sized), 2 host candidates",
+      "name": "pairing FALCON: offer 586 / answer 587 chars (QR-sized), 2 host candidates",
       "ok": true
     },
     {
-      "name": "pairing OWL: offer 590 / answer 588 chars (QR-sized), 2 host candidates",
+      "name": "pairing OWL: offer 583 / answer 586 chars (QR-sized), 2 host candidates",
       "ok": true
     },
     {
@@ -237,7 +237,7 @@
       "name": "latency (RTT) measured on both links",
       "ok": true,
       "info": [
-        5,
+        3,
         3
       ]
     },
@@ -265,7 +265,7 @@
       "fp": 3,
       "fn": 0
     },
-    "p50ms": 93
+    "p50ms": 90
   },
   "eval_coco-lite": {
     "person": {
@@ -282,7 +282,7 @@
       "fp": 0,
       "fn": 3
     },
-    "p50ms": 344
+    "p50ms": 363
   },
   "squadBrowser": "skipped: this Chrome gathered 0 ICE candidates (sandbox without enumerable network interfaces); see squad_node + CI run",
   "base": "https://govconnew.github.io/pigeon-eye/",
