@@ -16,6 +16,9 @@ module.exports = async function (browser, BASE, check, newPage, OUT, errs) {
     await p.waitForFunction(() => [...__pe.poseStates.values()].some(s => s.tag === 'HANDS UP') && /HANDS UP ×/.test(document.getElementById('counts').textContent), { timeout: 60000 }).catch(() => {});
     const st = await p.evaluate(() => ({ states: [...__pe.poseStates.values()].map(s => ({ tag: s.tag, hands: s.hands, l: s.arm.l.score, r: s.arm.r.score })), runs: __pe.poseStats.runs, counts: document.getElementById('counts').textContent, ev: __pe.events().filter(e => e.type === 'pose').map(e => e.text), method: __pe.contacts().map(c => c.method) }));
     check('app: HANDS UP tag on confirmed person (held ≥0.5 s), HUD summary + log event', st.states.some(s => s.tag === 'HANDS UP') && /HANDS: 2 visible/.test(st.counts) && /HANDS UP ×1/.test(st.counts) && st.ev.some(e => /HANDS UP/.test(e)), st);
+    const r0 = await p.evaluate(() => __pe.poseStats.runs); await sleep(3000);
+    const fx = await p.evaluate(r0 => ({ r0, feats: Object.keys(PE.features), mode: __pe.poseStats.mode, every: __pe.poseStats.every, runs: __pe.poseStats.runs, tracks: __pe.poseStats.tracks, errs: PE.errors.length, ms: Math.round(__pe.poseStats.ms), skipped: __pe.poseStats.skipped, fps: __pe.fps && __pe.fps() }), r0);
+    check('v1.3: pose + map features registered via bus, pose driven per video frame, tracker active, no handler errors', fx.feats.includes('pose') && fx.feats.includes('map') && fx.mode === 'video-frame' && fx.runs - fx.r0 >= 5 && fx.tracks >= 1 && fx.errs === 0, fx);
     await sleep(300); await p.screenshot({ path: path.join(OUT, 'shot_pose_handsup.png') });
     await p.evaluate(() => { __pe.S.pose = false; }); await sleep(600); const off = await p.evaluate(() => document.getElementById('counts').textContent);
     check('pose toggle off hides skeleton/hands readout', !/HANDS/.test(off), off);

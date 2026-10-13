@@ -40,7 +40,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     const cont = await A.evaluate(() => __pe.contacts().filter(c => c.own).map(c => ({ cls: c.cls, d: c.d, brg: c.brg, conf: c.conf })));
     check('confirmed contacts with ~distance & bearing', cont.some(c => c.cls === 'person' && c.d > 0.5 && c.d < 60 && c.brg >= 0 && c.brg < 360), cont);
     await A.evaluate(() => { __pe.addWaypoint({ x: 30, y: 40 }, 'RALLY', '#FFB000'); __pe.addWaypoint({ x: -50, y: -10 }, 'BASE', '#00E5FF'); __pe.markClear(); for (let i = 0; i < 12; i++) __pe.step(); __pe.setHeading(110); for (let i = 0; i < 10; i++) __pe.step(); __pe.markClear('Shed'); });
-    await A.waitForFunction(() => __pe.poseStates.size > 0, { timeout: 30000 }).catch(() => {});
+    await A.waitForFunction(() => __pe.poseStates.size > 0 && /HANDS: /.test(document.getElementById('counts').textContent), { timeout: 30000 }).catch(() => {});
     const pz = await A.evaluate(() => ({ n: __pe.poseStates.size, counts: document.getElementById('counts').textContent }));
     check('skeleton/hands on person_dog cam: HANDS: 2 visible, no hands-up', pz.n >= 1 && /HANDS: 2 visible/.test(pz.counts) && !/HANDS UP/.test(pz.counts), pz);
     await sleep(800); await A.screenshot({ path: path.join(OUT, 'shot_hud.png') }); await A.screenshot({ path: path.join(OUT, 'shot_pose_skeleton.png') });
@@ -96,7 +96,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     await require('./map_tests.js')(browser, BASE, check, newPage, OUT);
     await require('./ios_tests.js')(browser, BASE, check, newPage, OUT);
     const swv = await A.evaluate(() => fetch('sw.js', { cache: 'no-store' }).then(r => r.text()).then(t => (t.match(/pe-v[\d.]+/) || [])[0]));
-    check('service worker version served = pe-v1.2.0', swv === 'pe-v1.2.0', swv);
+    check('service worker version served = pe-v1.3.0', swv === 'pe-v1.3.0', swv);
     // ---- 4. offline: service worker precache, go offline, reload ----
     await A.waitForFunction(() => /READY/.test(__pe.offline()), { timeout: 180000 }).catch(() => {});
     const offMsg = await A.evaluate(() => __pe.offline()); check('service worker precache ready', /READY/.test(offMsg), offMsg);

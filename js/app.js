@@ -4,7 +4,7 @@
  * Squad: WebRTC data channels (QR signaling, LAN/hotspot) — everything stays on the phones. */
 (function () {
   'use strict';
-  var VERSION = '1.2.0', $ = function (id) { return document.getElementById(id); }, G = PGeo;
+  var VERSION = '1.3.0', $ = function (id) { return document.getElementById(id); }, G = PGeo;
   var ANIMALS = ['bird', 'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe'], VEH = ['bicycle', 'car', 'motorcycle', 'bus', 'truck', 'boat'];
   var DEF = { callsign: 'PIGEON-' + Math.floor(Math.random() * 90 + 10), color: '#00E5FF', fov: 73, ph: 1.75, step: 0.72, animals: true, vehicles: false, audio: false, low: false, model: 'effdet0', mapMode: 'heading', mapScale: 2, layer: 'sat', smooth: 0.25, pose: true, big: false, id: Math.random().toString(36).slice(2, 10) };
   var S = Object.assign({}, DEF, JSON.parse(localStorage.getItem('pe.settings') || '{}')); function save() { localStorage.setItem('pe.settings', JSON.stringify(S)); applyClasses(); }
@@ -93,44 +93,27 @@
       var W = video.videoWidth, H = video.videoHeight, r = await SDet2.detect(video, W, H, { floor: 0.15, iou: 0.5 });
       push(stats.det, r.t.pre + r.t.infer + r.t.post); push(stats.detTimes, now, 30);
       var u = tracker.update(r.dets, W, H, now);
-      poseStep(W, H, now);
-      u.events.forEach(function (t) { var c = contactFrom(t, W, H); if (!c) return; contacts.push(c); logEv('contact', t.label + ' #' + t.id + ' ~' + G.fmtDist(c.d) + ' ' + Math.round(c.brg) + '°', c); squad.send({ t: 'contact', c: c }); });
+      PE.bus.emit('detect:update', { tracks: tracker.confirmedVisible(), events: u.events, W: W, H: H, now: now, ms: r.t.pre + r.t.infer + r.t.post });
+      u.events.forEach(function (t) { var c = contactFrom(t, W, H); if (!c) return; contacts.push(c); PE.bus.emit('contact', c); logEv('contact', t.label + ' #' + t.id + ' ~' + G.fmtDist(c.d) + ' ' + Math.round(c.brg) + '°', c); squad.send({ t: 'contact', c: c }); });
       tracker.confirmedVisible().forEach(function (t) { var c = contacts.filter(function (k) { return k.trackId === t.id && k.own; })[0], n = contactFrom(t, W, H); if (c && n) { c.brg = n.brg; c.d = n.d; c.x = n.x; c.y = n.y; c.ts = n.ts; c.clipped = n.clipped; c.method = n.method; } });
     } catch (e) { console.warn('detect', e); }
     busy = false;
   }
-  // ---------- pose: skeleton, hands visible, hands up (MediaPipe Pose Landmarker lite, on-device) ----------
-  var poseStates = new Map(), poseTick = 0, poseStats = { runs: 0, people: 0 };
-  function poseStep(W, H, now) {
-    if (!S.pose || !window.PPoseRun || !PPoseRun.ready()) return;
-    var people = tracker.confirmedVisible().filter(function (t) { return t.group === 'person'; }); if (!people.length) return;
-    if (poseTick++ % 2) return; // alternate detection cycles to keep iPhone frame budget
-    var poses = PPoseRun.detect(video); poseStats.runs++; poseStats.people = poses.length;
-    var m = PPose.associate(people, poses, W, H);
-    m.forEach(function (j, id) { var ps = poseStates.get(id) || new PPose.PoseState(), was = ps.tag; ps.update(poses[j], W, H, now); ps.seen = now; poseStates.set(id, ps);
-      if (ps.tag && ps.tag !== was) logEv('pose', 'person #' + id + ' ' + ps.tag); });
-    poseStates.forEach(function (ps, id) { if (now - ps.seen > 5000) poseStates.delete(id); });
-  }
-  function loadPose() { if (!S.pose || window.PPoseRun) return (window.PPoseRun ? PPoseRun.load() : Promise.resolve()).catch(function () {}); return loadScript('js/pose.js').then(function () { return PPoseRun.load(); }).then(function () { toast('Pose (skeleton/hands) ready'); }).catch(function (e) { toast('Pose unavailable: ' + e.message); }); }
-  function drawSkeleton(ps, T, col) {
-    var lm = ps.lm, W0 = video.videoWidth, H0 = video.videoHeight, P = function (i) { return { x: lm[i].x * W0 * T.s + T.ox, y: lm[i].y * H0 * T.s + T.oy }; };
-    hx.strokeStyle = col; hx.lineWidth = 2; hx.lineCap = 'round'; hx.beginPath();
-    PPose.EDGES.forEach(function (e) { if (!PPose.vis(lm[e[0]], 0.65) || !PPose.vis(lm[e[1]], 0.65)) return; var a = P(e[0]), b = P(e[1]); hx.moveTo(a.x, a.y); hx.lineTo(b.x, b.y); }); hx.stroke();
-    hx.fillStyle = col; for (var i = 0; i < 33; i++) { if (i > 0 && i < 11) continue; if (!PPose.vis(lm[i], 0.65)) continue; var q = P(i); hx.beginPath(); hx.arc(q.x, q.y, i === 15 || i === 16 ? 4 : 2.5, 0, 7); hx.fill(); }
-    if (PPose.vis(lm[0])) { var n = P(0), sw = PPose.vis(lm[11]) && PPose.vis(lm[12]) ? Math.hypot(P(11).x - P(12).x, P(11).y - P(12).y) : 30; hx.beginPath(); hx.arc(n.x, n.y, Math.max(6, sw * 0.28), 0, 7); hx.stroke(); }
-  }
+  // pose (skeleton / hands / hands-up) lives in js/features/pose.js
+  function poseFor(id) { var f = PE.features.pose; return f && f.forTrack ? f.forTrack(id) : null; }
   function contactFrom(t, W, H) {
     var real = t.group === 'person' ? S.ph : ({ dog: 0.6, cat: 0.3, bird: 0.25, horse: 1.6, cow: 1.5, sheep: 0.9, bear: 1.2, car: 1.5, truck: 3, bicycle: 1.1, motorcycle: 1.2 })[t.label] || 1;
     var d = G.estDistance(t.box, W, H, S.fov, real), brg = G.bearingOf(t.box.x + t.box.w / 2, W, H, S.fov, heading), method = 'height'; if (!d) return null;
     // alternate estimate from shoulder width when the person is crouched (squat box) or cut off / partly occluded
-    var ps = poseStates.get(t.id); if (t.group === 'person' && ps && performance.now() - ps.seen < 1500 && (d.clipped || t.box.h / Math.max(1, t.box.w) < 1.8)) { var sd = PPose.shoulderDistance(ps.lm, W, H, G.focalPx(W, H, S.fov)); if (sd) { d = { m: sd, clipped: false }; method = 'shoulders'; } }
+    var ps = poseFor(t.id); if (t.group === 'person' && ps && (d.clipped || t.box.h / Math.max(1, t.box.w) < 1.8)) { var sd = PPose.shoulderDistance(ps.lm, W, H, G.focalPx(W, H, S.fov)); if (sd) { d = { m: sd, clipped: false }; method = 'shoulders'; } }
     var p = G.polarToENU(brg, d.m); return { id: S.id + ':' + t.id, trackId: t.id, own: true, by: S.callsign, cls: t.label, conf: +t.maxScore.toFixed(2), brg: +brg.toFixed(1), d: +d.m.toFixed(1), clipped: d.clipped, method: method, x: +(me().x + p.x).toFixed(1), y: +(me().y + p.y).toFixed(1), ts: Date.now() };
   }
 
   // ---------- squad ----------
   function onSquadMsg(m, from) {
+    PE.bus.emit('squad:' + m.t, { msg: m, from: from });
     if (m.t === 'state') { squadState[from] = Object.assign(squadState[from] || {}, m.s, { callsign: m.callsign, color: m.color, t: Date.now() }); }
-    else if (m.t === 'contact') { var c = Object.assign({}, m.c, { own: false }); if (!contacts.some(function (k) { return k.id === c.id && k.ts === c.ts; })) { contacts.push(c); logEv('contact', 'shared by ' + m.callsign + ': ' + c.cls + ' ~' + G.fmtDist(c.d), c); } }
+    else if (m.t === 'contact') { var c = Object.assign({}, m.c, { own: false }); if (!contacts.some(function (k) { return k.id === c.id && k.ts === c.ts; })) { contacts.push(c); PE.bus.emit('contact', c); logEv('contact', 'shared by ' + m.callsign + ': ' + c.cls + ' ~' + G.fmtDist(c.d), c); } }
     else if (m.t === 'waypoint') { upsert(waypoints, m.w); logEv('waypoint', m.callsign + ' set waypoint ' + m.w.name, m.w); }
     else if (m.t === 'room') { upsert(rooms, m.r); logEv('room', m.callsign + ' marked ' + m.r.name + ' clear', m.r); }
     else if (m.t === 'sync') { doSync(m.origin, m.callsign); }
@@ -186,8 +169,8 @@
     $('wp-x').onclick = function () { d.classList.add('hidden'); };
     $('wp-ok').onclick = function () { d.classList.add('hidden'); addWaypoint(pt, $('wp-name').value, $('wp-color').value); };
   }
-  function addWaypoint(pt, name, color) { wpN++; var ll = fuser.origin ? G.fromENU(pt, fuser.origin) : null; var w = { id: S.id + ':w' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: name || ('WP ' + wpN), color: color || '#FFB000', x: +pt.x.toFixed(1), y: +pt.y.toFixed(1), lat: ll && +ll.lat.toFixed(6), lon: ll && +ll.lon.toFixed(6), by: S.callsign, ts: Date.now() }; waypoints.push(w); squad.send({ t: 'waypoint', w: w }); logEv('waypoint', 'waypoint ' + w.name, w); toast('Waypoint ' + w.name); return w; }
-  function markClear(name) { var r = { id: S.id + ':r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: name || ('Room ' + roomN++), x: +me().x.toFixed(1), y: +me().y.toFixed(1), by: S.callsign, ts: Date.now(), mode: fuser.mode }; rooms.push(r); squad.send({ t: 'room', r: r }); logEv('room', r.name + ' marked clear', r); toast(r.name + ' CLEAR'); return r; }
+  function addWaypoint(pt, name, color) { wpN++; var ll = fuser.origin ? G.fromENU(pt, fuser.origin) : null; var w = { id: S.id + ':w' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: name || ('WP ' + wpN), color: color || '#FFB000', x: +pt.x.toFixed(1), y: +pt.y.toFixed(1), lat: ll && +ll.lat.toFixed(6), lon: ll && +ll.lon.toFixed(6), by: S.callsign, ts: Date.now() }; waypoints.push(w); PE.bus.emit('waypoint', w); squad.send({ t: 'waypoint', w: w }); logEv('waypoint', 'waypoint ' + w.name, w); toast('Waypoint ' + w.name); return w; }
+  function markClear(name) { var r = { id: S.id + ':r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: name || ('Room ' + roomN++), x: +me().x.toFixed(1), y: +me().y.toFixed(1), by: S.callsign, ts: Date.now(), mode: fuser.mode }; rooms.push(r); PE.bus.emit('room', r); squad.send({ t: 'room', r: r }); logEv('room', r.name + ' marked clear', r); toast(r.name + ' CLEAR'); return r; }
   $('b-clear').onclick = function () { var d = dialog('<h3>MARK CLEAR</h3><label>Name <input id="rc-name" value="Room ' + roomN + '"></label><div class="row"><button class="btn primary" id="rc-ok">MARK CLEAR</button><button class="btn ghost" id="rc-x">CANCEL</button></div>'); $('rc-x').onclick = function () { d.classList.add('hidden'); }; $('rc-ok').onclick = function () { d.classList.add('hidden'); var n = $('rc-name').value; if (n === 'Room ' + roomN) n = null; markClear(n); }; };
   $('b-wp').onclick = function () { waypointDialog({ x: me().x, y: me().y }, 'at my position'); };
   hud.addEventListener('click', function (e) {
@@ -197,26 +180,7 @@
     $('wp-x').onclick = function () { d.classList.add('hidden'); };
     $('wp-ok').onclick = function () { d.classList.add('hidden'); var p = G.polarToENU(brg, +$('wp-d').value || 20); addWaypoint({ x: me().x + p.x, y: me().y + p.y }, $('wp-name').value); };
   });
-  // minimap: tap small → expand; tap full → waypoint at tapped spot
-  mm.addEventListener('click', function (e) {
-    if (!mm.classList.contains('full')) { mm.classList.add('full'); $('mapbar').classList.remove('hidden'); resize(); return; }
-    var r = mm.getBoundingClientRect(), cx = r.width / 2, cy = r.height / 2, sc = S.mapScale * 1.0, dx = (e.clientX - r.left - cx) / sc, dy = -(e.clientY - r.top - cy) / sc;
-    if (S.mapMode === 'heading') { var t = heading * Math.PI / 180, rx = dx * Math.cos(t) + dy * Math.sin(t), ry = -dx * Math.sin(t) + dy * Math.cos(t); dx = rx; dy = ry; }
-    waypointDialog({ x: me().x + dx, y: me().y + dy }, 'from map');
-  });
-  $('m-close').onclick = function () { mm.classList.remove('full'); $('mapbar').classList.add('hidden'); resize(); };
-  $('m-mode').onclick = function () { S.mapMode = S.mapMode === 'heading' ? 'north' : 'heading'; save(); this.textContent = S.mapMode === 'heading' ? 'HEADING-UP' : 'NORTH-UP'; };
-  var LAYERS = { sat: 'SAT', map: 'MAP', none: 'GRID' }; function layerBtn() { $('m-layer').textContent = LAYERS[S.layer] || 'SAT'; } layerBtn();
-  $('m-layer').onclick = function () { S.layer = S.layer === 'sat' ? 'map' : S.layer === 'map' ? 'none' : 'sat'; save(); layerBtn(); };
-  $('m-save').onclick = function () {
-    var ll = fuser.latlon(); if (!ll) return toast('Need a GPS fix to save an area');
-    var zs = [12, 13, 14, 15], est = function (r) { var e = PTiles.estimate(ll.lat, ll.lon, r, zs); return e.tiles + ' tiles ≈ ' + (e.bytes / 1e6).toFixed(1) + ' MB'; };
-    var d = dialog('<h3>SAVE AREA FOR OFFLINE</h3><p class="muted">Satellite tiles from Sentinel-2 cloudless (EOX, CC BY-NC-SA 4.0, ~10 m detail, zoom 12–15) — the source that permits caching. OSM and Esri tiles are not bulk-downloaded (their terms); tiles you have already viewed stay cached.</p><label>Radius <select id="sa-r"><option value="500">0.5 km — ' + est(500) + '</option><option value="1000" selected>1 km — ' + est(1000) + '</option><option value="2000">2 km — ' + est(2000) + '</option></select></label><div id="sa-p" class="mono muted">cap 500 tiles</div><div class="row"><button class="btn primary" id="sa-go">DOWNLOAD</button><button class="btn" id="sa-clear">DELETE SAVED</button><button class="btn ghost" id="sa-x">CLOSE</button></div>');
-    PTiles.savedInfo().then(function (i) { $('sa-p').textContent = 'saved now: ' + i.tiles + ' tiles · cap 500 per download'; });
-    $('sa-x').onclick = function () { d.classList.add('hidden'); }; $('sa-clear').onclick = function () { PTiles.clearSaved().then(function () { $('sa-p').textContent = 'deleted'; }); };
-    $('sa-go').onclick = function () { var r = +$('sa-r').value; $('sa-go').disabled = true; tiles.saveArea(ll.lat, ll.lon, r, zs, function (a, b, by) { $('sa-p').textContent = a + ' / ' + b + ' tiles · ' + (by / 1e6).toFixed(1) + ' MB'; }, 500).then(function (res) { $('sa-p').textContent = 'saved ' + (res.tiles - res.failed) + '/' + res.tiles + ' tiles (' + (res.bytes / 1e6).toFixed(1) + ' MB)'; logEv('map', 'saved offline area r=' + r + ' m, ' + res.tiles + ' tiles'); try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {} }).catch(function (e) { $('sa-p').textContent = 'failed: ' + e.message; }).then(function () { $('sa-go').disabled = false; }); };
-  };
-  $('m-zin').onclick = function () { S.mapScale = Math.min(40, S.mapScale * 1.5); save(); }; $('m-zout').onclick = function () { S.mapScale = Math.max(0.2, S.mapScale / 1.5); save(); };
+  // minimap UI + rendering moved to js/features/map.js
 
   // ---------- drawing ----------
   var GREEN = '#9ACD32';
@@ -253,9 +217,9 @@
     var vis = tracker.confirmedVisible(), counts = {}, hands = [];
     vis.forEach(function (t) {
       var b = { x: t.box.x * T.s + T.ox, y: t.box.y * T.s + T.oy, w: t.box.w * T.s, h: t.box.h * T.s }, c = contacts.filter(function (k) { return k.trackId === t.id && k.own; })[0], col = t.group === 'person' ? GREEN : '#00E5FF';
-      var ps = t.group === 'person' && S.pose ? poseStates.get(t.id) : null; if (ps && performance.now() - ps.seen > 1500) ps = null;
+      var ps = t.group === 'person' ? poseFor(t.id) : null;
       if (ps && ps.handsUp === 2) col = '#FFB000'; else if (ps && ps.handsUp === 1) col = '#FFE066';
-      if (ps) drawSkeleton(ps, T, GREEN);
+      if (ps) PE.features.pose.draw(hx, T, ps, GREEN);
       bracket(b.x, b.y, b.w, b.h, col); counts[t.label] = (counts[t.label] || 0) + 1;
       if (ps) { hands.push({ h: t.box.h, ps: ps }); var ty = Math.max(fs(118) + 18, b.y - 4) + fs(18); if (ps.tag) txt(ps.tag, Math.max(6, b.x), ty, col, 15); txt('HANDS: ' + PPose.handsText(ps.hands), Math.max(6, b.x), ty + (ps.tag ? fs(16) : 0), GREEN, 12); }
       var lx = Math.max(6, Math.min(W - fs(150), b.x)), ly = Math.max(fs(118) + 18, b.y - 4); if (ly > b.y - 4) ly = Math.min(H - 120, ly + 0); // keep labels on screen, below the top bar
@@ -268,28 +232,6 @@
     waypoints.forEach(function (w) { drawWorldMarker(w, w.color, w.name, T, W, H); });
     contacts.forEach(function (c) { var age = Date.now() - c.ts; if (age > 60000 || (c.own && vis.some(function (t) { return t.id === c.trackId; }))) return; var db = G.enuDistBrg(me(), c), ind = G.edgeIndicator(db.brg, heading, T.hfov, W, H, 40); if (ind) { hx.globalAlpha = Math.max(0.3, 1 - age / 60000); arrow(ind, '#FF3B30', c.cls + ' ' + G.fmtDist(db.d) + ' ' + Math.round(age / 1000) + 's'); hx.globalAlpha = 1; } });
   }
-  var mapInfo = { tiles: 0 };
-  function drawMap() {
-    var r = mm.getBoundingClientRect(), W = r.width, H = r.height, cx = W / 2, cy = H / 2, sc = S.mapScale * (mm.classList.contains('full') ? 1 : 0.6), P = function (p) { return G.project(p, me(), S.mapMode, heading, sc, cx, cy); };
-    mx.clearRect(0, 0, W, H); mx.save(); if (!mm.classList.contains('full')) { mx.beginPath(); mx.arc(cx, cy, W / 2, 0, 7); mx.clip(); }
-    var ll = fuser.latlon(), full = mm.classList.contains('full'); mapInfo.tiles = 0;
-    if (ll && S.layer !== 'none' && isFinite(ll.lat) && isFinite(ll.lon)) { mapInfo.tiles = tiles.draw(mx, S.layer, ll.lat, ll.lon, 1 / sc, W, H, cx, cy, S.mapMode === 'heading' ? -hdg() * Math.PI / 180 : 0, devicePixelRatio || 1); if (mapInfo.tiles) { mx.fillStyle = 'rgba(0,0,0,.25)'; mx.fillRect(0, 0, W, H); } }
-    if (ll && fuser.acc != null && isFinite(fuser.acc)) { mx.fillStyle = 'rgba(0,229,255,.12)'; mx.strokeStyle = 'rgba(0,229,255,.6)'; mx.beginPath(); mx.arc(cx, cy, Math.min(Math.max(W, H), fuser.acc * sc), 0, 7); mx.fill(); mx.stroke(); }
-    mx.strokeStyle = 'rgba(154,205,50,.25)'; mx.lineWidth = 1; [10, 25, 50, 100, 250].forEach(function (m) { if (m * sc < Math.max(W, H)) { mx.beginPath(); mx.arc(cx, cy, m * sc, 0, 7); mx.stroke(); } });
-    mx.strokeStyle = 'rgba(154,205,50,.8)'; var brk = true; mx.beginPath(); path.slice(-3000).forEach(function (p, i) { var q = P(p); if (!q) { brk = true; return; } if (i && !p.sync && !brk) mx.lineTo(q.x, q.y); else mx.moveTo(q.x, q.y); brk = false; }); mx.stroke();
-    rooms.forEach(function (rm) { var q = P(rm); if (!q) return; mx.strokeStyle = GREEN; mx.strokeRect(q.x - 6, q.y - 6, 12, 12); mx.beginPath(); mx.moveTo(q.x - 4, q.y); mx.lineTo(q.x - 1, q.y + 3); mx.lineTo(q.x + 4, q.y - 3); mx.stroke(); mtxt(rm.name, q.x + 8, q.y + 4, GREEN); });
-    waypoints.forEach(function (w) { var q = P(w); if (!q) return; mx.fillStyle = w.color; mx.beginPath(); mx.moveTo(q.x, q.y - 7); mx.lineTo(q.x + 5, q.y); mx.lineTo(q.x, q.y + 7); mx.lineTo(q.x - 5, q.y); mx.fill(); mtxt(w.name, q.x + 7, q.y + 4, w.color); });
-    contacts.forEach(function (c) { var age = Date.now() - c.ts; if (age > 300000) return; var q = P(c); if (!q) return; mx.globalAlpha = Math.max(0.15, 1 - age / 300000); mx.strokeStyle = '#FF3B30'; mx.beginPath(); mx.moveTo(q.x - 4, q.y - 4); mx.lineTo(q.x + 4, q.y + 4); mx.moveTo(q.x + 4, q.y - 4); mx.lineTo(q.x - 4, q.y + 4); mx.stroke(); if (mm.classList.contains('full')) mtxt(c.cls + ' ' + Math.round(age / 1000) + 's', q.x + 6, q.y + 3, '#FF3B30'); mx.globalAlpha = 1; });
-    Object.keys(squadState).forEach(function (k) { var s = squadState[k], age = Date.now() - s.t; if (age > 60000) return; var q = P(memberENU(s)); if (!q) return; mx.globalAlpha = age > 15000 ? 0.35 : 1; mx.fillStyle = s.color || '#0ef'; mx.beginPath(); mx.arc(q.x, q.y, 5, 0, 7); mx.fill(); mtxt(s.callsign || k, q.x + 7, q.y + 4, s.color || '#0ef'); mx.globalAlpha = 1; });
-    // me
-    mx.save(); mx.translate(cx, cy); mx.rotate(S.mapMode === 'heading' ? 0 : heading * Math.PI / 180); mx.fillStyle = '#fff'; mx.beginPath(); mx.moveTo(0, -9); mx.lineTo(6, 7); mx.lineTo(0, 3); mx.lineTo(-6, 7); mx.fill(); mx.restore();
-    if (S.mapMode === 'heading') { var nq = G.project({ x: me().x, y: me().y + 1000 }, me(), 'heading', heading, 1, cx, cy), a = Math.atan2(nq.x - cx, cy - nq.y); mtxt('N', cx + Math.sin(a) * (Math.min(W, H) / 2 - 12) - 4, cy - Math.cos(a) * (Math.min(W, H) / 2 - 12) + 4, '#fff'); } else mtxt('N', cx - 4, 14, '#fff');
-    var badge = !ll ? 'NO GPS FIX — grid only' : fuser.mode === 'PDR' ? 'PDR — estimated' : 'GPS ±' + Math.round(fuser.acc || 0) + ' m';
-    mx.font = (full ? 12 : 9) + 'px ui-monospace, Menlo, monospace'; mx.textAlign = 'center'; mx.fillStyle = fuser.mode === 'PDR' || !ll ? '#FFB000' : '#9ACD32'; mx.fillText(badge, cx, full ? 80 : H - 30);
-    if (mapInfo.tiles) { var at = S.layer === 'map' ? PTiles.SOURCES.map.attr : (navigator.onLine === false ? PTiles.SOURCES.s2.attr : PTiles.SOURCES.sat.attr); mx.font = (full ? 10 : 7) + 'px system-ui, sans-serif'; mx.fillStyle = '#fff'; if (full) { mx.textAlign = 'right'; mx.fillText(at, W - 6, H - 70); } else { mx.fillText(S.layer === 'map' ? '© OSM' : (navigator.onLine === false ? '© EOX S2' : '© Esri'), cx, H - 18); } }
-    mx.textAlign = 'left'; mx.restore(); $('m-scale').textContent = Math.round(50 / sc) + ' m / 50 px';
-  }
-  function mtxt(s, x, y, col) { mx.font = '11px ui-monospace, Menlo, monospace'; mx.fillStyle = col; mx.fillText(s, x, y); }
   function topbar() {
     var m = fuser.tick(Date.now()), ll = fuser.latlon(); $('t-mode').textContent = m; $('t-mode').className = 'pill' + (m === 'PDR' ? ' warn' : '');
     $('t-acc').textContent = '±' + (fuser.acc != null ? Math.round(fuser.acc) + 'm' : '--');
@@ -299,7 +241,7 @@
   function loop() {
     requestAnimationFrame(loop); var tnow = performance.now(), dt = lastFrame ? Math.min(250, tnow - lastFrame) : 16; lastFrame = tnow; hSmooth.tau = S.smooth; if (isFinite(rawHeading)) heading = hSmooth.update(rawHeading, dt); if (!isFinite(heading)) heading = 0; if (!started) return; var now = performance.now();
     if (running && !gap && SDet2.isReady() && video.videoWidth) { if (!busy && now - lastDet >= (S.low ? 800 : 250)) { lastDet = now; detStep(now); } else if (busy && now - lastDet > 250) stats.skipped++; }
-    checkSize(); try { drawHUD(); } catch (e) { drawErr.hud = e.message; } try { drawMap(); } catch (e) { drawErr.map = e.message; } if (((now / 500) | 0) !== loop._k) { loop._k = (now / 500) | 0; topbar(); if (!$('sheet').classList.contains('hidden') && $('p-diag').classList.contains('active')) renderDiag(); if (!$('sheet').classList.contains('hidden') && $('p-sensors').classList.contains('active')) renderSensors(); }
+    checkSize(); try { drawHUD(); } catch (e) { drawErr.hud = e.message; } PE.bus.emit('frame', now); if (((now / 500) | 0) !== loop._k) { loop._k = (now / 500) | 0; topbar(); if (!$('sheet').classList.contains('hidden') && $('p-diag').classList.contains('active')) renderDiag(); if (!$('sheet').classList.contains('hidden') && $('p-sensors').classList.contains('active')) renderSensors(); }
   }
 
 
@@ -336,7 +278,7 @@
   $('sheet-close').onclick = function () { $('sheet').classList.add('hidden'); }; $('b-menu').onclick = function () { openSheet('settings'); }; $('b-squad').onclick = function () { openSheet('squad'); };
   $('b-big').onclick = function () { S.big = !S.big; save(); this.classList.toggle('on', S.big); };
   $('btn-start-help').onclick = function () { openSheet('help'); };
-  function bind(id, key, num) { var e = $(id); if (e.type === 'checkbox') e.checked = !!S[key]; else e.value = S[key]; e.onchange = function () { S[key] = e.type === 'checkbox' ? e.checked : num ? +e.value : e.value; save(); if (key === 'model') SDet2.load(S.model).then(function () { toast('Detector ready'); }); if (key === 'pose' && S.pose) loadPose(); if (key === 'audio') { if (S.audio && started) startAudio(); else stopAudio(); } }; }
+  function bind(id, key, num) { var e = $(id); if (e.type === 'checkbox') e.checked = !!S[key]; else e.value = S[key]; e.onchange = function () { S[key] = e.type === 'checkbox' ? e.checked : num ? +e.value : e.value; save(); if (key === 'model') SDet2.load(S.model).then(function () { toast('Detector ready'); }); PE.bus.emit('settings:change', key); if (key === 'audio') { if (S.audio && started) startAudio(); else stopAudio(); } }; }
   [['s-call', 'callsign'], ['s-color', 'color'], ['s-fov', 'fov', 1], ['s-ph', 'ph', 1], ['s-step', 'step', 1], ['s-animals', 'animals'], ['s-vehicles', 'vehicles'], ['s-audio', 'audio'], ['s-low', 'low'], ['s-model', 'model'], ['s-smooth', 'smooth', 1], ['s-pose', 'pose']].forEach(function (b) { bind(b[0], b[1], b[2]); });
   $('s-cal').onclick = function () { var d = +$('s-cal-d').value, t = tracker.confirmedVisible().filter(function (x) { return x.group === 'person'; }).sort(function (a, b) { return b.box.h - a.box.h; })[0]; if (!d || !t) return toast('Need a known distance and a confirmed person in view'); if (t.box.y <= 2 || t.box.y + t.box.h >= video.videoHeight - 2) return toast('Person is cut off by the frame — step back'); S.fov = +G.calibrateFov(t.box.h, video.videoWidth, video.videoHeight, S.ph, d).toFixed(1); save(); $('s-fov').value = S.fov; logEv('calibration', 'FOV calibrated to ' + S.fov + '°'); toast('FOV = ' + S.fov + '°'); };
   $('s-step-start').onclick = function () { stepCal = { n: 0, t: Date.now() }; $('s-step-info').textContent = 'Walk the measured distance now…'; };
@@ -397,7 +339,7 @@
   // ---------- boot ----------
   async function boot() {
     $('ver').textContent = 'v' + VERSION; $('help-env').textContent = 'PIGEON EYE ' + VERSION + ' · ' + navigator.userAgent;
-    try { await SDet2.load(S.model, {}, function (s) { $('model-status').textContent = 'Detector: ' + s; }); loadPose(); var c = SDet2.current(); $('model-status').textContent = 'Detector: ' + c.label + ' · ' + c.backend; }
+    try { await SDet2.load(S.model, {}, function (s) { $('model-status').textContent = 'Detector: ' + s; }); PE.bus.emit('detector:ready', SDet2.current()); var c = SDet2.current(); $('model-status').textContent = 'Detector: ' + c.label + ' · ' + c.backend; }
     catch (e) { $('model-status').textContent = 'Detector failed (' + e.message + ') → COCO-SSD'; try { if (!window.tf) await new Promise(function (r, j) { var s = document.createElement('script'); s.src = 'vendor/tf.min.js'; s.onload = r; s.onerror = j; document.head.append(s); }); await SDet2.load('coco-lite'); $('model-status').textContent = 'Detector: COCO-SSD fallback'; } catch (e2) { $('model-status').textContent = 'Detector unavailable'; } }
   }
   $('btn-start').onclick = function () {
@@ -407,11 +349,21 @@
       try { await startCamera(); setP('p-cam', 'ok', true); } catch (e) { setP('p-cam', e.name === 'NotAllowedError' ? 'denied — see Help (HUD/map still run)' : 'error ' + e.name, false); }
       await perms;
       if (navigator.getBattery) navigator.getBattery().then(function (b) { battery = b; }).catch(function () {});
-      started = true; running = true; if (S.audio) startAudio(); $('start').classList.add('hidden'); resize(); updCompassBtn(); logEv('session', 'started v' + VERSION + ' · ' + (SDet2.current() ? SDet2.current().label : 'no detector') + ' · orientation ' + sens.ori.perm + ' · motion ' + sens.mot.perm);
+      started = true; running = true; PE.bus.emit('session:start'); if (S.audio) startAudio(); $('start').classList.add('hidden'); resize(); updCompassBtn(); logEv('session', 'started v' + VERSION + ' · ' + (SDet2.current() ? SDet2.current().label : 'no detector') + ' · orientation ' + sens.ori.perm + ' · motion ' + sens.mot.perm);
     })();
   };
   $('b-compass').onclick = function () { requestMotionPerms().then(function () { listenSensors(); toast('Compass: ' + sens.ori.perm); }); if (sens.geo.watch == null) startGeo(); };
   window.__pe = { VERSION: VERSION, S: S, squad: squad, fuser: fuser, tracker: tracker, waypoints: function () { return waypoints; }, rooms: function () { return rooms; }, contacts: function () { return contacts; }, events: function () { return events; }, path: function () { return path; }, squadState: function () { return squadState; },
-    useCode: useCode, addWaypoint: addWaypoint, markClear: markClear, setHeading: function (h) { heading = h; rawHeading = h; if (isFinite(h)) hSmooth.snap(h); }, setRawHeading: function (h) { rawHeading = h; }, tiles: tiles, mapInfo: function () { return mapInfo; }, heading: function () { return heading; }, sens: sens, drawErr: drawErr, emitOrientation: onOrientation, poseStates: poseStates, poseStats: poseStats, gps: function (lat, lon, acc) { onGps({ coords: { latitude: lat, longitude: lon, accuracy: acc } }); }, step: function () { stats.steps++; fuser.step(hdg()); addPathPoint(); }, sync: function () { $('sq-sync').click(); }, geojson: geojson, sessionJSON: sessionJSON, offline: function () { return offlineMsg; }, openSheet: openSheet, stats: stats };
+    useCode: useCode, addWaypoint: addWaypoint, markClear: markClear, setHeading: function (h) { heading = h; rawHeading = h; if (isFinite(h)) hSmooth.snap(h); }, setRawHeading: function (h) { rawHeading = h; }, tiles: tiles, mapInfo: function () { return PE.features.map.info(); }, heading: function () { return heading; }, sens: sens, drawErr: drawErr, emitOrientation: onOrientation, gps: function (lat, lon, acc) { onGps({ coords: { latitude: lat, longitude: lon, accuracy: acc } }); }, step: function () { stats.steps++; fuser.step(hdg()); addPathPoint(); }, sync: function () { $('sq-sync').click(); }, geojson: geojson, sessionJSON: sessionJSON, offline: function () { return offlineMsg; }, openSheet: openSheet, stats: stats };
+  // ---------- feature context (the public surface features may use; see docs/ARCHITECTURE.md) ----------
+  var fpsEma = 0, fpsLast = 0; PE.bus.on('frame', function (now) { if (fpsLast) { var f = 1000 / Math.max(1, now - fpsLast); fpsEma = fpsEma ? fpsEma + 0.05 * (f - fpsEma) : f; } fpsLast = now; });
+  var ctx = { VERSION: VERSION, $: $, S: S, G: G, save: save, toast: toast, dialog: dialog, logEv: logEv, loadScript: loadScript, esc: esc,
+    video: video, hud: hud, mm: mm, resize: resize, cover: cover, tracker: tracker, fuser: fuser, tiles: tiles, squad: squad, drawErr: drawErr,
+    me: me, heading: hdg, memberENU: memberENU, waypointDialog: waypointDialog, addWaypoint: addWaypoint, markClear: markClear, openSheet: openSheet,
+    path: function () { return path; }, waypoints: function () { return waypoints; }, rooms: function () { return rooms; }, contacts: function () { return contacts; }, squadState: function () { return squadState; },
+    running: function () { return started && running && !gap; }, fps: function () { return fpsEma; } };
+  PE.start(ctx);
+  Object.defineProperty(window.__pe, 'poseStates', { get: function () { return PE.features.pose ? PE.features.pose.states() : new Map(); } });
+  Object.defineProperty(window.__pe, 'poseStats', { get: function () { return PE.features.pose ? PE.features.pose.stats : {}; } });
   requestAnimationFrame(loop); boot();
 })();

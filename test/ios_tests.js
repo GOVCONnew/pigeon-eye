@@ -20,7 +20,7 @@ module.exports = async function (browser, BASE, check, newPage, OUT) {
   // (b) START ordering: orientation + motion + getCurrentPosition all inside the gesture; compass heading from webkitCompassHeading
   { const ctx = await browser.createBrowserContext(); await ctx.overridePermissions(new URL(BASE).origin, ['geolocation', 'camera']); const p = await newPage(ctx, 'iosB');
     await p.evaluateOnNewDocument(MOCK, { geoGesture: true }); await p.setGeolocation({ latitude: 40.7128, longitude: -74.006, accuracy: 85 });
-    await p.goto(BASE, { waitUntil: 'load' }); const ver = await p.$eval('#ver', e => e.textContent); check('start screen shows version', ver === 'v1.2.0', ver);
+    await p.goto(BASE, { waitUntil: 'load' }); const ver = await p.$eval('#ver', e => e.textContent); check('start screen shows version', ver === 'v1.3.0', ver);
     await p.click('#btn-start'); await p.waitForFunction(() => document.getElementById('start').classList.contains('hidden'), { timeout: 20000 });
     const calls = await p.evaluate(() => window.__permCalls), sens = await p.evaluate(() => ({ ori: __pe.sens.ori.perm, mot: __pe.sens.mot.perm }));
     check('START calls orientation, motion and getCurrentPosition synchronously inside the tap', ['orientation', 'motion', 'geo.getCurrentPosition'].every(n => calls.some(c => c.name === n && c.inGesture)) && calls.every(c => c.inGesture), { calls, sens });

@@ -21,9 +21,9 @@
   function shoulderDistance(lm, W, H, focal) { var a = lm[11], b = lm[12]; if (!vis(a) || !vis(b)) return null; var px = Math.hypot((a.x - b.x) * W, (a.y - b.y) * H); return px < 6 ? null : CFG.shoulderM * focal / px; }
   /** Per-person state: smoothing + hands-up hysteresis. */
   function PoseState() { this.lm = null; this.arm = { l: { up: false, since: null }, r: { up: false, since: null } }; this.lastT = 0; }
-  PoseState.prototype.update = function (raw, W, H, now) {
+  PoseState.prototype.update = function (raw, W, H, now, preFiltered) {
     var a = CFG.alpha;
-    if (!this.lm || now - this.lastT > 1000) this.lm = raw.map(function (p) { return { x: p.x, y: p.y, visibility: p.visibility == null ? 1 : p.visibility }; });
+    if (preFiltered || !this.lm || now - this.lastT > 1000) this.lm = raw.map(function (p) { return { x: p.x, y: p.y, visibility: p.visibility == null ? 1 : p.visibility }; });
     else this.lm = this.lm.map(function (o, i) { var p = raw[i]; return { x: o.x + a * (p.x - o.x), y: o.y + a * (p.y - o.y), visibility: o.visibility + a * ((p.visibility == null ? 1 : p.visibility) - o.visibility) }; });
     this.lastT = now; var self = this;
     ['l', 'r'].forEach(function (s) {
@@ -41,6 +41,38 @@
     poses.forEach(function (lm, j) { var pb = bbox(lm, W, H); if (!pb) return; var cx = pb.x + pb.w / 2, cy = pb.y + pb.h / 2; boxes.forEach(function (b) { if (cx >= b.box.x && cx <= b.box.x + b.box.w && cy >= b.box.y && cy <= b.box.y + b.box.h) pairs.push([iou(b.box, pb), b.id, j]); }); });
     pairs.sort(function (a, b) { return b[0] - a[0]; }).forEach(function (p) { if (!out.has(p[1]) && !used[p[2]]) { out.set(p[1], p[2]); used[p[2]] = 1; } }); return out;
   }
-  var api = { L: L, EDGES: EDGES, CFG: CFG, vis: vis, bbox: bbox, handsVisible: handsVisible, handsText: handsText, raise: raise, shoulderDistance: shoulderDistance, PoseState: PoseState, associate: associate };
+  // ---- One Euro filter (Casiez et al. 2012): low jitter when still, low lag when moving ----
+  function lpAlpha(cutoff, dt) { var tau = 1 / (2 * Math.PI * cutoff); return 1 / (1 + tau / dt); }
+  function OneEuro(minCutoff, beta, dCutoff) { this.minCutoff = minCutoff == null ? 0.8 : minCutoff; this.beta = beta == null ? 0.008 : beta; this.dCutoff = dCutoff || 1; this.x = null; this.dx = 0; this.t = null; }
+  OneEuro.prototype.filter = function (x, tSec) {
+    if (this.x == null || !isFinite(this.x)) { this.x = x; this.dx = 0; this.t = tSec; return x; }
+    var dt = Math.max(1e-3, tSec - this.t); this.t = tSec; var d = (x - this.x) / dt;
+    this.dx = this.dx + lpAlpha(this.dCutoff, dt) * (d - this.dx); var cutoff = this.minCutoff + this.beta * Math.abs(this.dx);
+    this.x = this.x + lpAlpha(cutoff, dt) * (x - this.x); return this.x;
+  };
+  // ---- pose identity tracking frame-to-frame ----
+  function centroid(lm, W, H) { var sx = 0, sy = 0, n = 0; [11, 12, 23, 24, 0].forEach(function (i) { if (vis(lm[i], 0.3)) { sx += lm[i].x * W; sy += lm[i].y * H; n++; } }); if (!n) { var b = bbox(lm, W, H); return b ? { x: b.x + b.w / 2, y: b.y + b.h / 2 } : null; } return { x: sx / n, y: sy / n }; }
+  function lmDist(a, b, W, H) { var s = 0, n = 0; for (var i = 0; i < 33; i++) if (vis(a[i], 0.4) && vis(b[i], 0.4)) { s += Math.hypot((a[i].x - b[i].x) * W, (a[i].y - b[i].y) * H); n++; } return n ? s / n : Infinity; }
+  /** Tracks poses across frames with stable ids. Each track: filtered landmarks (One Euro per coordinate), velocity, hands-up state. */
+  function PoseTracker(o) { o = o || {}; this.maxMissMs = o.maxMissMs || 600; this.gate = o.gate || 1.6; this.tracks = []; this.nextId = 1; this.minCutoff = o.minCutoff; this.beta = o.beta; }
+  PoseTracker.prototype.update = function (poses, W, H, tMs) {
+    var self = this, diag = Math.hypot(W, H), dets = poses.map(function (lm) { return { lm: lm, box: bbox(lm, W, H), c: centroid(lm, W, H) }; }).filter(function (d) { return d.box && d.c; }), pairs = [];
+    this.tracks.forEach(function (tr, i) { var pred = self.predict(tr, tMs); dets.forEach(function (d, j) {
+      var bd = Math.hypot(tr.box.w, tr.box.h) || 1, cost = (1 - iou(tr.box, d.box)) + Math.hypot(tr.c.x - d.c.x, tr.c.y - d.c.y) / bd + Math.min(2, lmDist(pred, d.lm, W, H) / bd);
+      if (cost < self.gate) pairs.push([cost, i, j]); }); });
+    pairs.sort(function (a, b) { return a[0] - b[0]; }); var ut = {}, ud = {};
+    pairs.forEach(function (p) { if (ut[p[1]] || ud[p[2]]) return; ut[p[1]] = ud[p[2]] = 1; self._absorb(self.tracks[p[1]], dets[p[2]], W, H, tMs); });
+    dets.forEach(function (d, j) { if (ud[j]) return; var tr = { id: self.nextId++, filters: [], hits: 0, state: new PoseState(), vel: null, lm: null }; self._absorb(tr, d, W, H, tMs); self.tracks.push(tr); });
+    this.tracks = this.tracks.filter(function (tr) { return tMs - tr.t <= self.maxMissMs; }); return this.tracks;
+  };
+  PoseTracker.prototype._absorb = function (tr, d, W, H, tMs) {
+    var ts = tMs / 1000, prev = tr.lm, self = this, dt = tr.t != null ? Math.max(1e-3, (tMs - tr.t) / 1000) : null;
+    tr.lm = d.lm.map(function (p, i) { var f = tr.filters[i] || (tr.filters[i] = [new OneEuro(self.minCutoff, self.beta), new OneEuro(self.minCutoff, self.beta)]); return { x: f[0].filter(p.x * W, ts) / W, y: f[1].filter(p.y * H, ts) / H, visibility: p.visibility == null ? 1 : p.visibility }; });
+    tr.vel = prev && dt ? tr.lm.map(function (p, i) { return { x: (p.x - prev[i].x) / dt, y: (p.y - prev[i].y) / dt }; }) : tr.lm.map(function () { return { x: 0, y: 0 }; });
+    tr.box = d.box; tr.c = d.c; tr.t = tMs; tr.hits++; tr.state.update(tr.lm, W, H, tMs, true);
+  };
+  /** Landmarks extrapolated to time tMs with the last velocity (max 150 ms ahead) — used to draw between pose frames. */
+  PoseTracker.prototype.predict = function (tr, tMs) { var dt = Math.min(0.15, Math.max(0, (tMs - tr.t) / 1000)); if (!dt || !tr.vel) return tr.lm; return tr.lm.map(function (p, i) { return { x: p.x + tr.vel[i].x * dt, y: p.y + tr.vel[i].y * dt, visibility: p.visibility }; }); };
+  var api = { OneEuro: OneEuro, PoseTracker: PoseTracker, centroid: centroid, L: L, EDGES: EDGES, CFG: CFG, vis: vis, bbox: bbox, handsVisible: handsVisible, handsText: handsText, raise: raise, shoulderDistance: shoulderDistance, PoseState: PoseState, associate: associate };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else global.PPose = api;
 })(typeof window !== 'undefined' ? window : globalThis);

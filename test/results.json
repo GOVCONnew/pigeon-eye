@@ -1,6 +1,6 @@
 {
   "unit": {
-    "pass": 74,
+    "pass": 83,
     "fail": 0
   },
   "checks": [
@@ -38,7 +38,7 @@
           "fp": 3,
           "fn": 0
         },
-        "p50ms": 92
+        "p50ms": 90
       }
     },
     {
@@ -85,7 +85,7 @@
           "fp": 0,
           "fn": 3
         },
-        "p50ms": 367
+        "p50ms": 340
       }
     },
     {
@@ -99,7 +99,7 @@
       "info": [
         {
           "cls": "person",
-          "d": 0.8,
+          "d": 1.2,
           "brg": 48,
           "conf": 0.82
         },
@@ -150,20 +150,20 @@
     {
       "name": "path CSV export",
       "ok": true,
-      "info": "2026-10-13T01:40:15.096Z,0,0,38.889484,-77.035278,GPS,6,45,"
+      "info": "2026-10-13T02:07:04.838Z,0,0,38.889484,-77.035278,GPS,6,45,"
     },
     {
       "name": "offer QR renders and decodes (jsQR) to the offer code",
       "ok": true,
       "info": {
-        "len": 487
+        "len": 490
       }
     },
     {
       "name": "answer QR renders and decodes",
       "ok": true,
       "info": {
-        "len": 483
+        "len": 482
       }
     },
     {
@@ -213,14 +213,32 @@
             "r": 1.6574818406960836
           }
         ],
-        "runs": 2,
+        "runs": 3,
         "counts": "PERSON 1  ·  HANDS: 2 visible  ·  HANDS UP ×1",
         "ev": [
-          "person #1 HANDS UP"
+          "person 1 HANDS UP"
         ],
         "method": [
           "shoulders"
         ]
+      }
+    },
+    {
+      "name": "v1.3: pose + map features registered via bus, pose driven per video frame, tracker active, no handler errors",
+      "ok": true,
+      "info": {
+        "r0": 3,
+        "feats": [
+          "pose",
+          "map"
+        ],
+        "mode": "video-frame",
+        "every": 3,
+        "runs": 12,
+        "tracks": 1,
+        "errs": 0,
+        "ms": 84,
+        "skipped": 23
       }
     },
     {
@@ -232,9 +250,9 @@
       "name": "live smoothing 350°→10° goes through 0° (no 180° spin) and settles",
       "ok": true,
       "info": [
-        351,
-        6,
-        8,
+        356,
+        2,
+        7,
         9,
         10
       ]
@@ -242,7 +260,7 @@
     {
       "name": "tape/heading animates every frame (rAF, independent of sensor rate)",
       "ok": true,
-      "info": "34 frames/s headless"
+      "info": "35 frames/s headless"
     },
     {
       "name": "satellite tiles (Esri) render under the full map",
@@ -251,7 +269,7 @@
         "tiles": 121,
         "z": 19,
         "stats": {
-          "net": 150,
+          "net": 132,
           "cache": 0,
           "failed": 0
         }
@@ -261,9 +279,9 @@
       "name": "OpenStreetMap tiles render (layer toggle)",
       "ok": true,
       "info": {
-        "tiles": 121,
+        "tiles": 103,
         "stats": {
-          "net": 271,
+          "net": 257,
           "cache": 0,
           "failed": 0
         }
@@ -309,7 +327,7 @@
     {
       "name": "start screen shows version",
       "ok": true,
-      "info": "v1.2.0"
+      "info": "v1.3.0"
     },
     {
       "name": "START calls orientation, motion and getCurrentPosition synchronously inside the tap",
@@ -415,14 +433,14 @@
       }
     },
     {
-      "name": "service worker version served = pe-v1.2.0",
+      "name": "service worker version served = pe-v1.3.0",
       "ok": true,
-      "info": "pe-v1.2.0"
+      "info": "pe-v1.3.0"
     },
     {
       "name": "service worker precache ready",
       "ok": true,
-      "info": "READY — works with no signal (27 files)"
+      "info": "READY — works with no signal (30 files)"
     },
     {
       "name": "offline reload: app + detector load from cache",
@@ -441,11 +459,11 @@
   ],
   "squadNode": [
     {
-      "name": "pairing FALCON: offer 583 / answer 587 chars (QR-sized), 2 host candidates",
+      "name": "pairing FALCON: offer 588 / answer 584 chars (QR-sized), 2 host candidates",
       "ok": true
     },
     {
-      "name": "pairing OWL: offer 587 / answer 586 chars (QR-sized), 2 host candidates",
+      "name": "pairing OWL: offer 587 / answer 584 chars (QR-sized), 2 host candidates",
       "ok": true
     },
     {
@@ -493,7 +511,7 @@
       "name": "latency (RTT) measured on both links",
       "ok": true,
       "info": [
-        4,
+        3,
         3
       ]
     },
@@ -521,7 +539,7 @@
       "fp": 3,
       "fn": 0
     },
-    "p50ms": 92
+    "p50ms": 90
   },
   "eval_coco-lite": {
     "person": {
@@ -538,7 +556,7 @@
       "fp": 0,
       "fn": 3
     },
-    "p50ms": 367
+    "p50ms": 340
   },
   "squadBrowser": "skipped: this Chrome gathered 0 ICE candidates (sandbox without enumerable network interfaces); see squad_node + CI run",
   "base": "http://localhost:8765/",

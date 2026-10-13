@@ -1,6 +1,6 @@
 {
   "unit": {
-    "pass": 61,
+    "pass": 74,
     "fail": 0
   },
   "checks": [
@@ -38,7 +38,7 @@
           "fp": 3,
           "fn": 0
         },
-        "p50ms": 96
+        "p50ms": 94
       }
     },
     {
@@ -85,7 +85,7 @@
           "fp": 0,
           "fn": 3
         },
-        "p50ms": 353
+        "p50ms": 351
       }
     },
     {
@@ -99,7 +99,7 @@
       "info": [
         {
           "cls": "person",
-          "d": 1.2,
+          "d": 0.8,
           "brg": 48,
           "conf": 0.82
         },
@@ -112,6 +112,14 @@
       ]
     },
     {
+      "name": "skeleton/hands on person_dog cam: HANDS: 2 visible, no hands-up",
+      "ok": true,
+      "info": {
+        "n": 1,
+        "counts": "PERSON 1  DOG 1  ·  HANDS: 2 visible"
+      }
+    },
+    {
       "name": "HUD state (mode, rooms, waypoints, path)",
       "ok": true,
       "info": {
@@ -122,7 +130,7 @@
         ],
         "wps": 2,
         "path": 23,
-        "counts": "PERSON 1  DOG 1"
+        "counts": "PERSON 1  DOG 1  ·  HANDS: 2 visible"
       }
     },
     {
@@ -142,20 +150,20 @@
     {
       "name": "path CSV export",
       "ok": true,
-      "info": "2026-10-11T15:07:11.337Z,0,0,38.889484,-77.035278,GPS,6,45,"
+      "info": "2026-10-13T01:43:43.363Z,0,0,38.889484,-77.035278,GPS,6,45,"
     },
     {
       "name": "offer QR renders and decodes (jsQR) to the offer code",
       "ok": true,
       "info": {
-        "len": 483
+        "len": 490
       }
     },
     {
       "name": "answer QR renders and decodes",
       "ok": true,
       "info": {
-        "len": 480
+        "len": 482
       }
     },
     {
@@ -164,20 +172,77 @@
       "info": "skipped: this Chrome gathered 0 ICE candidates (sandbox without enumerable network interfaces); see squad_node + CI run"
     },
     {
+      "name": "pose model: arms-raised photo → both wrists well above shoulders, 2 hands visible",
+      "ok": true,
+      "info": {
+        "hands": 2,
+        "l": 1.5473496583267257,
+        "r": 1.5908806751903308,
+        "shDist": 1.379618070143802
+      }
+    },
+    {
+      "name": "pose model: backlit silhouette → ≥1 raised wrist found",
+      "ok": true,
+      "info": {
+        "hands": 1,
+        "l": 2.7073028237985866,
+        "r": null,
+        "shDist": 14.908330653759107
+      }
+    },
+    {
+      "name": "pose model: woman holding dog → hands visible, not raised",
+      "ok": true,
+      "info": {
+        "hands": 2,
+        "l": -0.970687175433647,
+        "r": -0.5298065555763166,
+        "shDist": 1.330924284106981
+      }
+    },
+    {
+      "name": "app: HANDS UP tag on confirmed person (held ≥0.5 s), HUD summary + log event",
+      "ok": true,
+      "info": {
+        "states": [
+          {
+            "tag": "HANDS UP",
+            "hands": 2,
+            "l": 1.5408393439211243,
+            "r": 1.6574818406960836
+          }
+        ],
+        "runs": 2,
+        "counts": "PERSON 1  ·  HANDS: 2 visible  ·  HANDS UP ×1",
+        "ev": [
+          "person #1 HANDS UP"
+        ],
+        "method": [
+          "shoulders"
+        ]
+      }
+    },
+    {
+      "name": "pose toggle off hides skeleton/hands readout",
+      "ok": true,
+      "info": "PERSON 1"
+    },
+    {
       "name": "live smoothing 350°→10° goes through 0° (no 180° spin) and settles",
       "ok": true,
       "info": [
         351,
         2,
-        6,
-        8,
-        9
+        7,
+        9,
+        10
       ]
     },
     {
       "name": "tape/heading animates every frame (rAF, independent of sensor rate)",
       "ok": true,
-      "info": "44 frames/s headless"
+      "info": "33 frames/s headless"
     },
     {
       "name": "satellite tiles (Esri) render under the full map",
@@ -186,7 +251,7 @@
         "tiles": 121,
         "z": 19,
         "stats": {
-          "net": 150,
+          "net": 112,
           "cache": 0,
           "failed": 0
         }
@@ -244,7 +309,7 @@
     {
       "name": "start screen shows version",
       "ok": true,
-      "info": "v1.1.0"
+      "info": "v1.2.0"
     },
     {
       "name": "START calls orientation, motion and getCurrentPosition synchronously inside the tap",
@@ -342,7 +407,7 @@
       "name": "minimap renders with no GPS and NaN heading (PDR path, DPR-sized canvas)",
       "ok": true,
       "info": {
-        "lit": 5380,
+        "lit": 5370,
         "w": 300,
         "err": {},
         "path": 8,
@@ -350,14 +415,14 @@
       }
     },
     {
-      "name": "service worker version served = pe-v1.1.0",
+      "name": "service worker version served = pe-v1.2.0",
       "ok": true,
-      "info": "pe-v1.1.0"
+      "info": "pe-v1.2.0"
     },
     {
       "name": "service worker precache ready",
       "ok": true,
-      "info": "READY — works with no signal (24 files)"
+      "info": "READY — works with no signal (27 files)"
     },
     {
       "name": "offline reload: app + detector load from cache",
@@ -376,11 +441,11 @@
   ],
   "squadNode": [
     {
-      "name": "pairing FALCON: offer 587 / answer 588 chars (QR-sized), 2 host candidates",
+      "name": "pairing FALCON: offer 582 / answer 590 chars (QR-sized), 2 host candidates",
       "ok": true
     },
     {
-      "name": "pairing OWL: offer 587 / answer 591 chars (QR-sized), 2 host candidates",
+      "name": "pairing OWL: offer 587 / answer 587 chars (QR-sized), 2 host candidates",
       "ok": true
     },
     {
@@ -428,7 +493,7 @@
       "name": "latency (RTT) measured on both links",
       "ok": true,
       "info": [
-        4,
+        3,
         3
       ]
     },
@@ -456,7 +521,7 @@
       "fp": 3,
       "fn": 0
     },
-    "p50ms": 96
+    "p50ms": 94
   },
   "eval_coco-lite": {
     "person": {
@@ -473,7 +538,7 @@
       "fp": 0,
       "fn": 3
     },
-    "p50ms": 353
+    "p50ms": 351
   },
   "squadBrowser": "skipped: this Chrome gathered 0 ICE candidates (sandbox without enumerable network interfaces); see squad_node + CI run",
   "base": "https://govconnew.github.io/pigeon-eye/",

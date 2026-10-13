@@ -1,7 +1,7 @@
 /* PIGEON EYE service worker: precache app shell + libraries + detector so the HUD works with no signal.
  * Other same-origin files (COCO-SSD fallback, YAMNet if enabled, PeerJS) are cached on first use. Nothing is sent anywhere. */
-var V = 'pe-v1.2.0', RT = 'pe-runtime-v1';
-var PRE = ['./', 'index.html', 'manifest.webmanifest', 'css/app.css', 'js/core.js', 'js/track.js', 'js/geo.js', 'js/tiles.js', 'js/poselogic.js', 'js/pose.js', 'models/pose/pose_landmarker_lite.task', 'js/squad.js', 'js/detectors.js', 'js/app.js', 'js/audio.js', 'js/audiologic.js',
+var V = 'pe-v1.3.0', RT = 'pe-runtime-v1';
+var PRE = ['./', 'index.html', 'manifest.webmanifest', 'css/app.css', 'js/core.js', 'js/track.js', 'js/geo.js', 'js/tiles.js', 'js/poselogic.js', 'js/pose.js', 'models/pose/pose_landmarker_lite.task', 'js/squad.js', 'js/detectors.js', 'js/app.js', 'js/bus.js', 'js/features/pose.js', 'js/features/map.js', 'js/audio.js', 'js/audiologic.js',
   'vendor/jsQR.js', 'vendor/qrcode.js', 'vendor/tf.min.js', 'vendor/mp/vision_bundle.mjs', 'vendor/mp/wasm/vision_wasm_internal.js', 'vendor/mp/wasm/vision_wasm_internal.wasm',
   'models/effdet/efficientdet_lite0_float16.tflite', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'media/nosleep.mp4'];
 self.addEventListener('install', function (e) { e.waitUntil(caches.open(V).then(function (c) { return c.addAll(PRE); }).then(function () { return self.skipWaiting(); })); });
