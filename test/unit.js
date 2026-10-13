@@ -55,6 +55,29 @@ t('smoothing: 10 → 350 turns left 20° (short way)', () => { const s = new G.H
 t('smoothing: time constant — 63% of a 40° step after tau (frame-rate independent)', () => { for (const fps of [30, 60, 120]) { const s = new G.HeadingSmoother(0.5); s.update(0, 16); let v; for (let i = 0; i < fps * 0.5; i++) v = s.update(40, 1000 / fps); assert(v > 22 && v < 30, fps + 'fps ' + v); } });
 t('smoothing: tau 0 = raw', () => { const s = new G.HeadingSmoother(0); s.update(10, 16); near(s.update(200, 16), 200, 1e-9); });
 t('smoothing: NaN target ignored', () => { const s = new G.HeadingSmoother(0.25); s.update(90, 16); near(s.update(NaN, 16), 90, 1e-9); });
+// --- pose logic (synthetic MediaPipe landmarks) ---
+const PP = require('../js/poselogic.js');
+function body(o) { o = o || {}; const lm = Array.from({ length: 33 }, () => ({ x: 0.5, y: 0.5, visibility: 0.1 })), S = (i, x, y, v) => lm[i] = { x, y, visibility: v == null ? 0.95 : v };
+  const sy = o.crouch ? 0.55 : 0.35; S(0, 0.5, sy - 0.1); S(11, 0.58, sy); S(12, 0.42, sy); S(23, 0.56, sy + 0.25); S(24, 0.44, sy + 0.25);
+  const wy = s => s === 'up' ? sy - 0.18 : s === 'mid' ? sy - 0.02 : sy + 0.25; // shoulder width 0.16 (×W) ; up = 1.1 sw above
+  if (o.l !== 'hidden') { S(13, 0.62, (sy + wy(o.l || 'down')) / 2); S(15, 0.63, wy(o.l || 'down')); S(17, 0.64, wy(o.l || 'down') - 0.01); }
+  if (o.r !== 'hidden') { S(14, 0.38, (sy + wy(o.r || 'down')) / 2); S(16, 0.37, wy(o.r || 'down')); S(18, 0.36, wy(o.r || 'down') - 0.01); }
+  if (!o.crouch) { S(25, 0.56, 0.8); S(26, 0.44, 0.8); S(27, 0.56, 0.95); S(28, 0.44, 0.95); } return lm; }
+function run(seq, W = 720, H = 720) { const st = new PP.PoseState(); const tags = []; seq.forEach(([lm, t]) => { st.update(lm, W, H, t); tags.push(st.tag); }); return { st, tags }; }
+const frames = (lm, t0, t1, step = 100) => { const a = []; for (let t = t0; t <= t1; t += step) a.push([lm, t]); return a; };
+t('pose: hands visible 2 / 1 / 0', () => { assert.strictEqual(PP.handsVisible(body()), 2); assert.strictEqual(PP.handsVisible(body({ r: 'hidden' })), 1); assert.strictEqual(PP.handsVisible(body({ l: 'hidden', r: 'hidden' })), 0); assert.strictEqual(PP.handsText(0), 'not visible'); });
+t('pose: low-visibility wrist does not count as visible', () => { const lm = body({ r: 'hidden' }); lm[16] = { x: 0.37, y: 0.6, visibility: 0.3 }; assert.strictEqual(PP.handsVisible(lm), 1); });
+t('pose: both wrists above shoulders held 0.5 s → HANDS UP (not before)', () => { const r = run(frames(body({ l: 'up', r: 'up' }), 0, 800)); assert.strictEqual(r.tags[3], ''); assert.strictEqual(r.tags[r.tags.length - 1], 'HANDS UP'); });
+t('pose: one wrist up → 1 HAND UP', () => assert.strictEqual(run(frames(body({ l: 'up' }), 0, 900)).st.tag, '1 HAND UP'));
+t('pose: hands down → no tag', () => assert.strictEqual(run(frames(body(), 0, 900)).st.tag, ''));
+t('pose: crouched (no legs) hands up still detected', () => assert.strictEqual(run(frames(body({ crouch: true, l: 'up', r: 'up' }), 0, 900)).st.tag, 'HANDS UP'));
+t('pose: hysteresis — brief 200 ms drop does not clear HANDS UP', () => { const up = body({ l: 'up', r: 'up' }), dn = body(); const r = run([...frames(up, 0, 900), ...frames(dn, 1000, 1200), ...frames(up, 1300, 1600)]); assert(r.tags.slice(9).every(x => x === 'HANDS UP'), r.tags.join()); });
+t('pose: hysteresis — wrists at shoulder level (between thresholds) keep state, no flicker', () => { const r = run([...frames(body({ l: 'up', r: 'up' }), 0, 900), ...frames(body({ l: 'mid', r: 'mid' }), 1000, 3000)]); assert(r.tags.slice(9).every(x => x === 'HANDS UP')); const r2 = run(frames(body({ l: 'mid', r: 'mid' }), 0, 2000)); assert(r2.tags.every(x => x === '')); });
+t('pose: hands lowered for > hold-off clears tag', () => { const r = run([...frames(body({ l: 'up', r: 'up' }), 0, 900), ...frames(body(), 1000, 2000)]); assert.strictEqual(r.st.tag, ''); });
+t('pose: alternating jitter around the threshold does not flicker', () => { const a = body({ l: 'up', r: 'up' }), b = body(); const seq = []; for (let t = 0; t < 3000; t += 100) seq.push([(t / 100) % 2 ? a : b, t]); const r = run(seq); let ch = 0; for (let i = 1; i < r.tags.length; i++) if (r.tags[i] !== r.tags[i - 1]) ch++; assert(ch <= 1, ch); });
+t('pose: smoothing reduces landmark jitter', () => { const st = new PP.PoseState(); let maxDev = 0; for (let i = 0; i < 40; i++) { const lm = body(); lm[15] = { x: 0.63 + (i % 2 ? 0.02 : -0.02), y: 0.6, visibility: 0.9 }; st.update(lm, 720, 720, i * 100); if (i > 5) maxDev = Math.max(maxDev, Math.abs(st.lm[15].x - 0.63)); } assert(maxDev < 0.015, maxDev); });
+t('pose: shoulder-width distance (0.40 m × f / px)', () => { const f = 500, lm = body(); near(PP.shoulderDistance(lm, 720, 720, f), 0.40 * f / (0.16 * 720), 1e-9); lm[12].visibility = 0.2; assert.strictEqual(PP.shoulderDistance(lm, 720, 720, f), null); });
+t('pose: associate poses to person boxes by IoU/centre', () => { const a = body(), b = body().map(p => ({ ...p, x: p.x - 0.35 })); const m = PP.associate([{ id: 7, box: { x: 250, y: 150, w: 220, h: 550 } }, { id: 9, box: { x: 0, y: 150, w: 200, h: 550 } }], [b, a], 720, 720); assert.strictEqual(m.get(7), 1); assert.strictEqual(m.get(9), 0); });
 // --- off-screen ---
 t('edge: in-view target → null', () => assert.strictEqual(G.edgeIndicator(100, 90, 45, 400, 800), null));
 t('edge: target to the right → right edge', () => { const e = G.edgeIndicator(90, 0, 45, 400, 800, 20); near(e.x, 380, 1e-6); near(e.y, 400, 1e-6); });

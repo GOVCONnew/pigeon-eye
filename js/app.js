@@ -4,9 +4,9 @@
  * Squad: WebRTC data channels (QR signaling, LAN/hotspot) — everything stays on the phones. */
 (function () {
   'use strict';
-  var VERSION = '1.1.0', $ = function (id) { return document.getElementById(id); }, G = PGeo;
+  var VERSION = '1.2.0', $ = function (id) { return document.getElementById(id); }, G = PGeo;
   var ANIMALS = ['bird', 'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe'], VEH = ['bicycle', 'car', 'motorcycle', 'bus', 'truck', 'boat'];
-  var DEF = { callsign: 'PIGEON-' + Math.floor(Math.random() * 90 + 10), color: '#00E5FF', fov: 73, ph: 1.75, step: 0.72, animals: true, vehicles: false, audio: false, low: false, model: 'effdet0', mapMode: 'heading', mapScale: 2, layer: 'sat', smooth: 0.25, big: false, id: Math.random().toString(36).slice(2, 10) };
+  var DEF = { callsign: 'PIGEON-' + Math.floor(Math.random() * 90 + 10), color: '#00E5FF', fov: 73, ph: 1.75, step: 0.72, animals: true, vehicles: false, audio: false, low: false, model: 'effdet0', mapMode: 'heading', mapScale: 2, layer: 'sat', smooth: 0.25, pose: true, big: false, id: Math.random().toString(36).slice(2, 10) };
   var S = Object.assign({}, DEF, JSON.parse(localStorage.getItem('pe.settings') || '{}')); function save() { localStorage.setItem('pe.settings', JSON.stringify(S)); applyClasses(); }
   var video = $('cam'), hud = $('hud'), hx = hud.getContext('2d'), mm = $('minimap'), mx = mm.getContext('2d');
   var stream = null, started = false, running = false, busy = false, lastDet = 0, gap = null;
@@ -93,15 +93,38 @@
       var W = video.videoWidth, H = video.videoHeight, r = await SDet2.detect(video, W, H, { floor: 0.15, iou: 0.5 });
       push(stats.det, r.t.pre + r.t.infer + r.t.post); push(stats.detTimes, now, 30);
       var u = tracker.update(r.dets, W, H, now);
+      poseStep(W, H, now);
       u.events.forEach(function (t) { var c = contactFrom(t, W, H); if (!c) return; contacts.push(c); logEv('contact', t.label + ' #' + t.id + ' ~' + G.fmtDist(c.d) + ' ' + Math.round(c.brg) + '°', c); squad.send({ t: 'contact', c: c }); });
-      tracker.confirmedVisible().forEach(function (t) { var c = contacts.filter(function (k) { return k.trackId === t.id && k.own; })[0], n = contactFrom(t, W, H); if (c && n) { c.brg = n.brg; c.d = n.d; c.x = n.x; c.y = n.y; c.ts = n.ts; c.clipped = n.clipped; } });
+      tracker.confirmedVisible().forEach(function (t) { var c = contacts.filter(function (k) { return k.trackId === t.id && k.own; })[0], n = contactFrom(t, W, H); if (c && n) { c.brg = n.brg; c.d = n.d; c.x = n.x; c.y = n.y; c.ts = n.ts; c.clipped = n.clipped; c.method = n.method; } });
     } catch (e) { console.warn('detect', e); }
     busy = false;
   }
+  // ---------- pose: skeleton, hands visible, hands up (MediaPipe Pose Landmarker lite, on-device) ----------
+  var poseStates = new Map(), poseTick = 0, poseStats = { runs: 0, people: 0 };
+  function poseStep(W, H, now) {
+    if (!S.pose || !window.PPoseRun || !PPoseRun.ready()) return;
+    var people = tracker.confirmedVisible().filter(function (t) { return t.group === 'person'; }); if (!people.length) return;
+    if (poseTick++ % 2) return; // alternate detection cycles to keep iPhone frame budget
+    var poses = PPoseRun.detect(video); poseStats.runs++; poseStats.people = poses.length;
+    var m = PPose.associate(people, poses, W, H);
+    m.forEach(function (j, id) { var ps = poseStates.get(id) || new PPose.PoseState(), was = ps.tag; ps.update(poses[j], W, H, now); ps.seen = now; poseStates.set(id, ps);
+      if (ps.tag && ps.tag !== was) logEv('pose', 'person #' + id + ' ' + ps.tag); });
+    poseStates.forEach(function (ps, id) { if (now - ps.seen > 5000) poseStates.delete(id); });
+  }
+  function loadPose() { if (!S.pose || window.PPoseRun) return (window.PPoseRun ? PPoseRun.load() : Promise.resolve()).catch(function () {}); return loadScript('js/pose.js').then(function () { return PPoseRun.load(); }).then(function () { toast('Pose (skeleton/hands) ready'); }).catch(function (e) { toast('Pose unavailable: ' + e.message); }); }
+  function drawSkeleton(ps, T, col) {
+    var lm = ps.lm, W0 = video.videoWidth, H0 = video.videoHeight, P = function (i) { return { x: lm[i].x * W0 * T.s + T.ox, y: lm[i].y * H0 * T.s + T.oy }; };
+    hx.strokeStyle = col; hx.lineWidth = 2; hx.lineCap = 'round'; hx.beginPath();
+    PPose.EDGES.forEach(function (e) { if (!PPose.vis(lm[e[0]], 0.65) || !PPose.vis(lm[e[1]], 0.65)) return; var a = P(e[0]), b = P(e[1]); hx.moveTo(a.x, a.y); hx.lineTo(b.x, b.y); }); hx.stroke();
+    hx.fillStyle = col; for (var i = 0; i < 33; i++) { if (i > 0 && i < 11) continue; if (!PPose.vis(lm[i], 0.65)) continue; var q = P(i); hx.beginPath(); hx.arc(q.x, q.y, i === 15 || i === 16 ? 4 : 2.5, 0, 7); hx.fill(); }
+    if (PPose.vis(lm[0])) { var n = P(0), sw = PPose.vis(lm[11]) && PPose.vis(lm[12]) ? Math.hypot(P(11).x - P(12).x, P(11).y - P(12).y) : 30; hx.beginPath(); hx.arc(n.x, n.y, Math.max(6, sw * 0.28), 0, 7); hx.stroke(); }
+  }
   function contactFrom(t, W, H) {
     var real = t.group === 'person' ? S.ph : ({ dog: 0.6, cat: 0.3, bird: 0.25, horse: 1.6, cow: 1.5, sheep: 0.9, bear: 1.2, car: 1.5, truck: 3, bicycle: 1.1, motorcycle: 1.2 })[t.label] || 1;
-    var d = G.estDistance(t.box, W, H, S.fov, real), brg = G.bearingOf(t.box.x + t.box.w / 2, W, H, S.fov, heading); if (!d) return null;
-    var p = G.polarToENU(brg, d.m); return { id: S.id + ':' + t.id, trackId: t.id, own: true, by: S.callsign, cls: t.label, conf: +t.maxScore.toFixed(2), brg: +brg.toFixed(1), d: +d.m.toFixed(1), clipped: d.clipped, x: +(me().x + p.x).toFixed(1), y: +(me().y + p.y).toFixed(1), ts: Date.now() };
+    var d = G.estDistance(t.box, W, H, S.fov, real), brg = G.bearingOf(t.box.x + t.box.w / 2, W, H, S.fov, heading), method = 'height'; if (!d) return null;
+    // alternate estimate from shoulder width when the person is crouched (squat box) or cut off / partly occluded
+    var ps = poseStates.get(t.id); if (t.group === 'person' && ps && performance.now() - ps.seen < 1500 && (d.clipped || t.box.h / Math.max(1, t.box.w) < 1.8)) { var sd = PPose.shoulderDistance(ps.lm, W, H, G.focalPx(W, H, S.fov)); if (sd) { d = { m: sd, clipped: false }; method = 'shoulders'; } }
+    var p = G.polarToENU(brg, d.m); return { id: S.id + ':' + t.id, trackId: t.id, own: true, by: S.callsign, cls: t.label, conf: +t.maxScore.toFixed(2), brg: +brg.toFixed(1), d: +d.m.toFixed(1), clipped: d.clipped, method: method, x: +(me().x + p.x).toFixed(1), y: +(me().y + p.y).toFixed(1), ts: Date.now() };
   }
 
   // ---------- squad ----------
@@ -227,15 +250,19 @@
     var r = hud.getBoundingClientRect(), W = r.width, H = r.height; hx.clearRect(0, 0, W, H); var T = cover(); if (!T) return;
     drawCompass(W);
     // confirmed detections
-    var vis = tracker.confirmedVisible(), counts = {};
+    var vis = tracker.confirmedVisible(), counts = {}, hands = [];
     vis.forEach(function (t) {
       var b = { x: t.box.x * T.s + T.ox, y: t.box.y * T.s + T.oy, w: t.box.w * T.s, h: t.box.h * T.s }, c = contacts.filter(function (k) { return k.trackId === t.id && k.own; })[0], col = t.group === 'person' ? GREEN : '#00E5FF';
+      var ps = t.group === 'person' && S.pose ? poseStates.get(t.id) : null; if (ps && performance.now() - ps.seen > 1500) ps = null;
+      if (ps && ps.handsUp === 2) col = '#FFB000'; else if (ps && ps.handsUp === 1) col = '#FFE066';
+      if (ps) drawSkeleton(ps, T, GREEN);
       bracket(b.x, b.y, b.w, b.h, col); counts[t.label] = (counts[t.label] || 0) + 1;
+      if (ps) { hands.push({ h: t.box.h, ps: ps }); var ty = Math.max(fs(118) + 18, b.y - 4) + fs(18); if (ps.tag) txt(ps.tag, Math.max(6, b.x), ty, col, 15); txt('HANDS: ' + PPose.handsText(ps.hands), Math.max(6, b.x), ty + (ps.tag ? fs(16) : 0), GREEN, 12); }
       var lx = Math.max(6, Math.min(W - fs(150), b.x)), ly = Math.max(fs(118) + 18, b.y - 4); if (ly > b.y - 4) ly = Math.min(H - 120, ly + 0); // keep labels on screen, below the top bar
       txt(t.label.toUpperCase() + ' ' + Math.round(t.score * 100) + '%', lx, ly - 14 * (S.big ? 1.45 : 1), col, 12);
-      if (c) txt((c.clipped ? '≤' : '~') + G.fmtDist(c.d) + ' · ' + String(Math.round(c.brg)).padStart(3, '0') + '°', lx, ly, col, 13);
+      if (c) txt((c.clipped ? '≤' : '~') + G.fmtDist(c.d) + (c.method === 'shoulders' ? ' (sh)' : '') + ' · ' + String(Math.round(c.brg)).padStart(3, '0') + '°', lx, ly, col, 13);
     });
-    $('counts').textContent = Object.keys(counts).map(function (k) { return k.toUpperCase() + ' ' + counts[k]; }).join('  ') || 'NO CONTACTS'; if (topSound) $('counts').textContent += '  ♪ ' + topSound.label;
+    $('counts').textContent = Object.keys(counts).map(function (k) { return k.toUpperCase() + ' ' + counts[k]; }).join('  ') || 'NO CONTACTS'; if (hands.length) { hands.sort(function (a, b) { return b.h - a.h; }); var nu = hands.filter(function (x) { return x.ps.handsUp === 2; }).length; $('counts').textContent += '  ·  HANDS: ' + PPose.handsText(hands[0].ps.hands) + (nu ? '  ·  HANDS UP ×' + nu : ''); } if (topSound) $('counts').textContent += '  ♪ ' + topSound.label;
     // squad (friendly, from shared positions), waypoints, recent contacts out of view
     Object.keys(squadState).forEach(function (k) { var s = squadState[k], age = Date.now() - s.t; if (age > 60000) return; hx.globalAlpha = age > 15000 ? 0.35 : age > 6000 ? 0.65 : 1; drawWorldMarker(memberENU(s), s.color || '#0ef', '◆' + (s.callsign || k), T, W, H, 'diamond'); hx.globalAlpha = 1; });
     waypoints.forEach(function (w) { drawWorldMarker(w, w.color, w.name, T, W, H); });
@@ -309,8 +336,8 @@
   $('sheet-close').onclick = function () { $('sheet').classList.add('hidden'); }; $('b-menu').onclick = function () { openSheet('settings'); }; $('b-squad').onclick = function () { openSheet('squad'); };
   $('b-big').onclick = function () { S.big = !S.big; save(); this.classList.toggle('on', S.big); };
   $('btn-start-help').onclick = function () { openSheet('help'); };
-  function bind(id, key, num) { var e = $(id); if (e.type === 'checkbox') e.checked = !!S[key]; else e.value = S[key]; e.onchange = function () { S[key] = e.type === 'checkbox' ? e.checked : num ? +e.value : e.value; save(); if (key === 'model') SDet2.load(S.model).then(function () { toast('Detector ready'); }); if (key === 'audio') { if (S.audio && started) startAudio(); else stopAudio(); } }; }
-  [['s-call', 'callsign'], ['s-color', 'color'], ['s-fov', 'fov', 1], ['s-ph', 'ph', 1], ['s-step', 'step', 1], ['s-animals', 'animals'], ['s-vehicles', 'vehicles'], ['s-audio', 'audio'], ['s-low', 'low'], ['s-model', 'model'], ['s-smooth', 'smooth', 1]].forEach(function (b) { bind(b[0], b[1], b[2]); });
+  function bind(id, key, num) { var e = $(id); if (e.type === 'checkbox') e.checked = !!S[key]; else e.value = S[key]; e.onchange = function () { S[key] = e.type === 'checkbox' ? e.checked : num ? +e.value : e.value; save(); if (key === 'model') SDet2.load(S.model).then(function () { toast('Detector ready'); }); if (key === 'pose' && S.pose) loadPose(); if (key === 'audio') { if (S.audio && started) startAudio(); else stopAudio(); } }; }
+  [['s-call', 'callsign'], ['s-color', 'color'], ['s-fov', 'fov', 1], ['s-ph', 'ph', 1], ['s-step', 'step', 1], ['s-animals', 'animals'], ['s-vehicles', 'vehicles'], ['s-audio', 'audio'], ['s-low', 'low'], ['s-model', 'model'], ['s-smooth', 'smooth', 1], ['s-pose', 'pose']].forEach(function (b) { bind(b[0], b[1], b[2]); });
   $('s-cal').onclick = function () { var d = +$('s-cal-d').value, t = tracker.confirmedVisible().filter(function (x) { return x.group === 'person'; }).sort(function (a, b) { return b.box.h - a.box.h; })[0]; if (!d || !t) return toast('Need a known distance and a confirmed person in view'); if (t.box.y <= 2 || t.box.y + t.box.h >= video.videoHeight - 2) return toast('Person is cut off by the frame — step back'); S.fov = +G.calibrateFov(t.box.h, video.videoWidth, video.videoHeight, S.ph, d).toFixed(1); save(); $('s-fov').value = S.fov; logEv('calibration', 'FOV calibrated to ' + S.fov + '°'); toast('FOV = ' + S.fov + '°'); };
   $('s-step-start').onclick = function () { stepCal = { n: 0, t: Date.now() }; $('s-step-info').textContent = 'Walk the measured distance now…'; };
   $('s-step-stop').onclick = function () { var d = +$('s-step-d').value; if (!stepCal || !d || stepCal.n < 4) { $('s-step-info').textContent = 'Need ≥4 steps and a distance (' + (stepCal ? stepCal.n : 0) + ' steps)'; return; } S.step = +(d / stepCal.n).toFixed(3); save(); $('s-step').value = S.step; $('s-step-info').textContent = stepCal.n + ' steps → ' + S.step + ' m/step'; logEv('calibration', 'step length ' + S.step + ' m'); stepCal = null; };
@@ -370,7 +397,7 @@
   // ---------- boot ----------
   async function boot() {
     $('ver').textContent = 'v' + VERSION; $('help-env').textContent = 'PIGEON EYE ' + VERSION + ' · ' + navigator.userAgent;
-    try { await SDet2.load(S.model, {}, function (s) { $('model-status').textContent = 'Detector: ' + s; }); var c = SDet2.current(); $('model-status').textContent = 'Detector: ' + c.label + ' · ' + c.backend; }
+    try { await SDet2.load(S.model, {}, function (s) { $('model-status').textContent = 'Detector: ' + s; }); loadPose(); var c = SDet2.current(); $('model-status').textContent = 'Detector: ' + c.label + ' · ' + c.backend; }
     catch (e) { $('model-status').textContent = 'Detector failed (' + e.message + ') → COCO-SSD'; try { if (!window.tf) await new Promise(function (r, j) { var s = document.createElement('script'); s.src = 'vendor/tf.min.js'; s.onload = r; s.onerror = j; document.head.append(s); }); await SDet2.load('coco-lite'); $('model-status').textContent = 'Detector: COCO-SSD fallback'; } catch (e2) { $('model-status').textContent = 'Detector unavailable'; } }
   }
   $('btn-start').onclick = function () {
@@ -385,6 +412,6 @@
   };
   $('b-compass').onclick = function () { requestMotionPerms().then(function () { listenSensors(); toast('Compass: ' + sens.ori.perm); }); if (sens.geo.watch == null) startGeo(); };
   window.__pe = { VERSION: VERSION, S: S, squad: squad, fuser: fuser, tracker: tracker, waypoints: function () { return waypoints; }, rooms: function () { return rooms; }, contacts: function () { return contacts; }, events: function () { return events; }, path: function () { return path; }, squadState: function () { return squadState; },
-    useCode: useCode, addWaypoint: addWaypoint, markClear: markClear, setHeading: function (h) { heading = h; rawHeading = h; if (isFinite(h)) hSmooth.snap(h); }, setRawHeading: function (h) { rawHeading = h; }, tiles: tiles, mapInfo: function () { return mapInfo; }, heading: function () { return heading; }, sens: sens, drawErr: drawErr, emitOrientation: onOrientation, gps: function (lat, lon, acc) { onGps({ coords: { latitude: lat, longitude: lon, accuracy: acc } }); }, step: function () { stats.steps++; fuser.step(hdg()); addPathPoint(); }, sync: function () { $('sq-sync').click(); }, geojson: geojson, sessionJSON: sessionJSON, offline: function () { return offlineMsg; }, openSheet: openSheet, stats: stats };
+    useCode: useCode, addWaypoint: addWaypoint, markClear: markClear, setHeading: function (h) { heading = h; rawHeading = h; if (isFinite(h)) hSmooth.snap(h); }, setRawHeading: function (h) { rawHeading = h; }, tiles: tiles, mapInfo: function () { return mapInfo; }, heading: function () { return heading; }, sens: sens, drawErr: drawErr, emitOrientation: onOrientation, poseStates: poseStates, poseStats: poseStats, gps: function (lat, lon, acc) { onGps({ coords: { latitude: lat, longitude: lon, accuracy: acc } }); }, step: function () { stats.steps++; fuser.step(hdg()); addPathPoint(); }, sync: function () { $('sq-sync').click(); }, geojson: geojson, sessionJSON: sessionJSON, offline: function () { return offlineMsg; }, openSheet: openSheet, stats: stats };
   requestAnimationFrame(loop); boot();
 })();

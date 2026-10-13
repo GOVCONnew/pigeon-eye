@@ -1,0 +1,9 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="icon" href="../icons/icon-192.png"><title>pose check</title></head><body>
+<script>window.SENTINEL_BASE = '../';</script><script src="../js/poselogic.js"></script><script src="../js/pose.js"></script>
+<script>
+window.run = async function (files) { await PPoseRun.load(); const out = [];
+  for (const f of files) { const i = new Image(); i.src = f; await i.decode(); const W = i.naturalWidth, H = i.naturalHeight; let poses = [];
+    for (let k = 0; k < 3; k++) poses = PPoseRun.detect(i); // VIDEO mode: a few frames
+    out.push({ file: f, n: poses.length, people: poses.map(lm => ({ hands: PPose.handsVisible(lm), l: PPose.raise(lm, 'l', W, H), r: PPose.raise(lm, 'r', W, H), shDist: PPose.shoulderDistance(lm, W, H, (Math.max(W, H) / 2) / Math.tan(36.5 * Math.PI / 180)) })) }); }
+  return out; };
+</script></body></html>

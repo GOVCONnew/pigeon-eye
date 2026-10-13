@@ -2,6 +2,7 @@
 | Component | Version | License | Path |
 |---|---|---|---|
 | MediaPipe Tasks Vision (bundle + WASM) | 0.10.21 | Apache-2.0 | vendor/mp/ |
+| MediaPipe Pose Landmarker lite (pose_landmarker_lite.task, float16) | latest (2026-10) | Apache-2.0 | models/pose/ |
 | EfficientDet-Lite0 float16 (MediaPipe model zoo) | — | Apache-2.0 | models/effdet/ |
 | TensorFlow.js | 4.22.0 | Apache-2.0 | vendor/tf.min.js |
 | COCO-SSD lite_mobilenet_v2 weights (tfjs-models) | — | Apache-2.0 | vendor/coco/ |
@@ -12,6 +13,7 @@
 | werift (tests only, not shipped) | 0.19 | MIT | npm |
 
 Code reused from Newton SENTINEL Mobile 2.0: js/core.js, js/track.js, js/detectors.js, js/audio.js, js/audiologic.js.
+Pose test photos: test/hands_c.jpg “Raise those arms” by Thomas Quine (CC BY 2.0, Wikimedia Commons File:Raise_those_arms_(31482765357).jpg); test/hands_a.jpg by Allef Vinicius (CC0, Wikimedia Commons File:Allef_Vinicius_2017-02-24_(Unsplash).jpg).
 Test images: test/eval/ (Wikimedia Commons, per-image license + author in test/eval/ground_truth.json); test/person_dog.jpg (public domain, see SENTINEL ATTRIBUTION).
 
 # Map tiles (fetched at runtime, not vendored)
